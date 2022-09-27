@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use logos::Logos;
 
-struct Lexer<'a> {
+pub struct Lexer<'a> {
     logos_lexer: logos::Lexer<'a, TokenKind>,
 }
 
@@ -48,9 +48,8 @@ pub enum TokenKind {
     Error,
 }
 
-#[cfg(test)]
 impl<'a> Lexer<'a> {
-    pub(crate) fn new(src: &'a str) -> Self {
+    pub fn new(src: &'a str) -> Self {
         Self {
             logos_lexer: TokenKind::lexer(src),
         }
@@ -74,11 +73,12 @@ impl<'a> Iterator for Lexer<'a> {
     }
 }
 
+#[cfg(test)]
 mod tests {
-    use crate::frontend::lexer::{Lexer, TokenKind};
 
     #[test]
     fn lexes_right_token() {
+        use crate::frontend::lexer::{Lexer, TokenKind};
         let mut lexer = Lexer::new("if bla {wee} else {wee}");
         assert_eq!(lexer.next().unwrap().kind, TokenKind::If);
         assert_eq!(lexer.next().unwrap().kind, TokenKind::Ident);
@@ -92,5 +92,6 @@ mod tests {
         assert_eq!(lexer.next().unwrap().kind, TokenKind::LeftBrace);
         assert_eq!(lexer.next().unwrap().kind, TokenKind::Ident);
         assert_eq!(lexer.next().unwrap().kind, TokenKind::RightBrace);
+        assert!(lexer.next().is_none());
     }
 }
