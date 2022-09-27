@@ -19,7 +19,17 @@ pub enum TokenKind {
     #[token("else")]
     Else,
 
-    #[regex(r"[a-zA-Z]+")]
+    #[regex(r"[0-9]([0-9]|_)+", |lex| lex.slice().parse())]
+    Integer(u64),
+
+    #[regex(r"[0-9]([0-9]|_)+\.([0-9]|_)*", |lex| lex.slice().parse())]
+    Float(f64),
+
+    //https://gist.github.com/cellularmitosis/6fd5fc2a65225364f72d3574abd9d5d5
+    #[regex(r#""([^"\\]|\\[\s\S])*""#)]
+    String,
+
+    #[regex(r"(_|[a-zA-Z])+(_|a-zA-Z0-9)*")]
     Ident,
 
     #[token("{")]
@@ -65,7 +75,7 @@ impl<'a> Iterator for Lexer<'a> {
 }
 
 mod tests {
-    use super::*;
+    use crate::frontend::lexer::{Lexer, TokenKind};
 
     #[test]
     fn lexes_right_token() {
