@@ -1,4 +1,4 @@
-use std::{error::Error, iter::Peekable};
+use std::{fmt::Debug, iter::Peekable, ops::Range};
 
 use self::ast::{Block, Expr, IfBranch, IfBranchSet, Item, Module};
 
@@ -9,6 +9,9 @@ pub type ParseResult<T> = Result<T, ParseError>;
 #[derive(Debug)]
 pub enum ParseError {
     UnexpectedEOF,
+    UnexpectedToken(Range<usize>),
+    Expected(Box<dyn 'static + Debug>),
+    WholeProgramNotParsed,
 }
 
 impl From<EOF> for ParseError {
@@ -48,27 +51,54 @@ impl<'a> Parser<'a> {
             Ok(None)
         }
     }
+    /// eats a token if f returns Some()
+    pub fn peek_map_eat_if<T, E, F>(&mut self, f: F) -> Result<Result<T, E>, EOF>
+    where
+        F: FnOnce(&Token) -> Result<T, E>,
+    {
+        let peek = self.peek()?;
+        let result = f(peek);
+        if result.is_ok() {
+            self.eat().expect("Eat and peek don't match");
+        }
 
+        Ok(result)
+    }
     pub fn is_at_eof(&mut self) -> bool {
         self.lexer.peek().is_none()
     }
     #[allow(dead_code)]
-    pub fn parse_module(&mut self) -> ParseResult<Module> {
-        let items = Vec::new();
-        while let Some(item) = self.try_parse_any_item()? {}
+    pub fn parse_program(&mut self) -> ParseResult<Module> {
+        let module = self.parse_module()?;
+        if !self.is_at_eof() {
+            return Err(ParseError::WholeProgramNotParsed);
+        }
+
+        Ok(module)
+    }
+
+    fn parse_module(&mut self) -> ParseResult<Module> {
+        let mut items = Vec::new();
+        while let Some(item) = self.try_parse_any_item()? {
+            items.push(item)
+        }
 
         Ok(Module { items })
     }
 
     fn try_parse_any_item(&mut self) -> ParseResult<Option<Item>> {
-        let start_of_item = self.eat_if(|tok| matches!(&tok.kind, TokenKind::If))?;
+        let start_of_item = self
+            .eat_if(|tok| matches!(&tok.kind, TokenKind::If))
+            .ok()
+            .flatten();
+
         let start_of_item = match start_of_item {
             Some(start) => start,
             None => return Ok(None),
         };
         let item = match start_of_item.kind {
             TokenKind::If => {
-                let branch_set = self.parse_if()?;
+                let branch_set = dbg!(self.parse_if())?;
                 Item::If(branch_set)
             }
             _ => unreachable!(),
@@ -109,11 +139,26 @@ impl<'a> Parser<'a> {
         Ok(IfBranch { condition, block })
     }
 
-    fn parse_expr(&self) -> ParseResult<Expr> {
-        todo!()
+    fn parse_expr(&mut self) -> ParseResult<Expr> {
+        self.peek_map_eat_if(|token| match token.kind {
+            TokenKind::Integer(num) => Ok(Expr::Number(num)),
+            _ => Err(ParseError::UnexpectedToken(token.span.clone())),
+        })?
     }
 
-    fn parse_block(&self) -> ParseResult<Block> {
-        todo!()
+    fn parse_block(&mut self) -> ParseResult<Block> {
+        self.eat_if(|token| token.kind == TokenKind::LeftBrace)?
+            .ok_or(ParseError::Expected(Box::new("Open Brace")))?;
+
+        while let Some(token) = self.eat_if(|tok| tok.kind != TokenKind::RightBrace)? {
+            if token.kind == TokenKind::LeftBrace {
+                todo!("Nested Blocks")
+            }
+        }
+
+        self.eat_if(|token| matches!(token.kind, TokenKind::RightBrace))?
+            .ok_or(ParseError::Expected(Box::new("Closed Brace")))?;
+
+        Ok(Block)
     }
 }
