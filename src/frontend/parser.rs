@@ -10,12 +10,13 @@ pub enum ParseError {
     UnexpectedEOF,
 }
 
-impl From<UnexpectedEOF> for ParseError {
-    fn from(_: UnexpectedEOF) -> Self {
+impl From<EOF> for ParseError {
+    fn from(_: EOF) -> Self {
         Self::UnexpectedEOF
     }
 }
-struct UnexpectedEOF;
+#[derive(Debug)]
+struct EOF;
 
 pub struct Parser<'a> {
     lexer: Peekable<Lexer<'a>>,
@@ -28,35 +29,20 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn peek(&mut self) -> Result<Option<&Token>, UnexpectedEOF> {
-        match self.lexer.peek() {
-            Some(t) => Ok(Some(t)),
-            None if self.is_at_eof() => Err(UnexpectedEOF),
-            None => Ok(None),
-        }
+    pub fn peek(&mut self) -> Result<&Token, EOF> {
+        self.lexer.peek().ok_or(EOF)
     }
 
-    pub fn eat(&mut self) -> Result<Option<Token>, UnexpectedEOF> {
-        match self.lexer.next() {
-            Some(t) => Ok(Some(t)),
-            None if self.is_at_eof() => Err(UnexpectedEOF),
-            None => Ok(None),
-        }
+    pub fn eat(&mut self) -> Result<Token, EOF> {
+        self.lexer.next().ok_or(EOF)
     }
-    pub fn eat_if<P: FnOnce(&Token) -> bool>(
-        &mut self,
-        p: P,
-    ) -> Result<Option<Token>, UnexpectedEOF> {
-        let tok = match self.peek() {
-            Ok(Some(val)) => val,
-            err => {
-                err?;
-                return Ok(None);
-            }
-        };
-
-        if p(tok) {
-            self.eat()
+    pub fn eat_if<P: FnOnce(&Token) -> bool>(&mut self, p: P) -> Result<Option<Token>, EOF> {
+        let should_eat = self.peek().map(p)?;
+        if should_eat {
+            let token = self
+                .eat()
+                .expect("Eat should be OK(...) eat and peek should be in sync");
+            Ok(Some(token))
         } else {
             Ok(None)
         }
@@ -65,7 +51,7 @@ impl<'a> Parser<'a> {
     pub fn is_at_eof(&mut self) -> bool {
         self.lexer.peek().is_none()
     }
-
+    #[allow(dead_code)]
     pub fn parse_module(&mut self) -> ParseResult<Module> {
         let items = Vec::new();
         while let Some(item) = self.try_parse_any_item()? {}
@@ -81,16 +67,36 @@ impl<'a> Parser<'a> {
             None => return Ok(None),
         };
         match start_of_item.kind {
-            TokenKind::If => self.parse_if(),
+            TokenKind::If => todo!(),
             _ => unreachable!(),
         }
     }
 
     fn parse_if(&mut self) -> ParseResult<IfBranchSet> {
         let if_branch = self.parse_if_branch()?;
-        while  {
-            
+        let mut else_if_branches = Vec::new();
+        let mut else_block = None;
+        loop {
+            // if no else/else if branch we are done
+            if let Ok(None) | Err(_) = self.eat_if(|token| token.kind == TokenKind::Else) {
+                break;
+            }
+            //parsing else if
+            if let Some(_) = self.eat_if(|token| token.kind == TokenKind::If)? {
+                let else_if_branch = self.parse_if_branch()?;
+
+                else_if_branches.push(else_if_branch);
+            } else {
+                else_block = Some(self.parse_block()?);
+                break;
+            }
         }
+
+        Ok(IfBranchSet {
+            if_branch,
+            else_if_branches,
+            else_block,
+        })
     }
     /// parses the condition and the block of the branch
     fn parse_if_branch(&mut self) -> ParseResult<IfBranch> {
