@@ -5,7 +5,7 @@ pub struct Module {
 
 #[derive(Debug)]
 pub enum Expr {
-    TODO,
+    Number(u64),
 }
 
 #[derive(Debug)]
