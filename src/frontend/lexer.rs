@@ -19,7 +19,7 @@ pub enum TokenKind {
     #[token("else")]
     Else,
 
-    #[regex(r"[0-9]([0-9]|_)+", |lex| lex.slice().parse())]
+    #[regex(r"[0-9]([0-9]|_)*", |lex| lex.slice().parse())]
     Integer(u64),
 
     #[regex(r"[0-9]([0-9]|_)+\.([0-9]|_)*", |lex| lex.slice().parse())]
@@ -44,7 +44,7 @@ pub enum TokenKind {
     RightParen,
 
     #[error]
-    #[regex(r"[ \t\n\f\r]+", |_| logos::Skip)]
+    #[regex(r"[ \t\n\f\r]+", logos::skip)]
     Error,
 }
 
@@ -69,7 +69,7 @@ impl<'a> Iterator for Lexer<'a> {
             return None;
         };
 
-        Some(token)
+        Some(dbg!(token))
     }
 }
 
