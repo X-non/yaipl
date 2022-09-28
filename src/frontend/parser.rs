@@ -63,13 +63,16 @@ impl<'a> Parser<'a> {
         let start_of_item = self.eat_if(|tok| matches!(&tok.kind, TokenKind::If))?;
         let start_of_item = match start_of_item {
             Some(start) => start,
-            None if self.is_at_eof() => return Err(ParseError::UnexpectedEOF),
             None => return Ok(None),
         };
-        match start_of_item.kind {
-            TokenKind::If => todo!(),
+        let item = match start_of_item.kind {
+            TokenKind::If => {
+                let branch_set = self.parse_if()?;
+                Item::If(branch_set)
+            }
             _ => unreachable!(),
-        }
+        };
+        Ok(Some(item))
     }
 
     fn parse_if(&mut self) -> ParseResult<IfBranchSet> {
