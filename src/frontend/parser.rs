@@ -1,6 +1,6 @@
 use std::{error::Error, iter::Peekable};
 
-use self::ast::{Block, Expr, IfBranch, IfConditonal, Item, Module};
+use self::ast::{Block, Expr, IfBranch, IfBranchSet, Item, Module};
 
 use super::lexer::{Lexer, Token, TokenKind};
 mod ast;
@@ -86,8 +86,11 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_if(&mut self) -> ParseResult<IfConditonal> {
+    fn parse_if(&mut self) -> ParseResult<IfBranchSet> {
         let if_branch = self.parse_if_branch()?;
+        while  {
+            
+        }
     }
     /// parses the condition and the block of the branch
     fn parse_if_branch(&mut self) -> ParseResult<IfBranch> {

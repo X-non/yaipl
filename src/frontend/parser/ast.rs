@@ -12,12 +12,12 @@ pub struct IfBranch {
 }
 
 pub struct Block;
-pub struct IfConditonal {
+pub struct IfBranchSet {
     pub if_branch: IfBranch,
     pub else_if_branches: Vec<IfBranch>,
     pub else_block: Option<Block>,
 }
 
 pub enum Item {
-    If(IfConditonal),
+    If(IfBranchSet),
 }
