@@ -17,7 +17,7 @@ impl From<EOF> for ParseError {
     }
 }
 #[derive(Debug)]
-struct EOF;
+pub struct EOF;
 
 pub struct Parser<'a> {
     lexer: Peekable<Lexer<'a>>,
