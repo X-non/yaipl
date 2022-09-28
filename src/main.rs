@@ -1,5 +1,3 @@
-use std::{fs::File, io::Read};
-
 use args::Args;
 use clap::Parser;
 use frontend::parser;
@@ -17,5 +15,18 @@ fn main() {
     // file.read_to_string(&mut text).unwrap();
     let text = "if 1 {} else {}";
 
-    println!("{:?}", parser::Parser::new(text).parse_module());
+    match parser::Parser::new(text).parse_program() {
+        Ok(module) => {
+            println!("{:#?}", module)
+        }
+        Err(err) => {
+            eprintln!("Error");
+            match err {
+                parser::ParseError::UnexpectedToken(r) => {
+                    eprintln!("{:?} @ {:?}", &text[r.clone()], r)
+                }
+                rest => eprintln!("{rest:?}"),
+            }
+        }
+    }
 }
