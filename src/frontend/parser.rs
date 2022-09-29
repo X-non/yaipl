@@ -1,6 +1,6 @@
 use std::{fmt::Debug, iter::Peekable, ops::Range};
 
-use self::ast::{Block, Expr, IfBranch, IfBranchSet, Item, Module};
+use self::ast::{Block, Expr, IfBranch, IfBranchSet, Item, Module, Stmt};
 
 use super::lexer::{Lexer, Token, TokenKind};
 mod ast;
@@ -150,6 +150,7 @@ impl<'a> Parser<'a> {
         self.eat_if(|token| token.kind == TokenKind::LeftBrace)?
             .ok_or(ParseError::Expected(Box::new("Open Brace")))?;
 
+        //TODO Actually parse something in here
         while let Some(token) = self.eat_if(|tok| tok.kind != TokenKind::RightBrace)? {
             if token.kind == TokenKind::LeftBrace {
                 todo!("Nested Blocks")
@@ -159,6 +160,6 @@ impl<'a> Parser<'a> {
         self.eat_if(|token| matches!(token.kind, TokenKind::RightBrace))?
             .ok_or(ParseError::Expected(Box::new("Closed Brace")))?;
 
-        Ok(Block)
+        Ok(Block { stmts: vec![] })
     }
 }

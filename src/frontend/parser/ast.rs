@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 #[derive(Debug)]
 pub struct Module {
     pub items: Vec<Item>,
@@ -14,7 +16,9 @@ pub struct IfBranch {
     pub block: Block,
 }
 #[derive(Debug)]
-pub struct Block;
+pub struct Block {
+    pub stmts: Vec<Stmt>,
+}
 
 #[derive(Debug)]
 pub struct IfBranchSet {
@@ -25,4 +29,16 @@ pub struct IfBranchSet {
 #[derive(Debug)]
 pub enum Item {
     If(IfBranchSet),
+}
+
+#[derive(Debug)]
+pub struct VaribleDecl {
+    pub name: Range<usize>,
+    pub intitalizer: Expr,
+}
+#[derive(Debug)]
+pub enum Stmt {
+    If(IfBranchSet),
+    Block(Block),
+    VaribleDecl(VaribleDecl),
 }
