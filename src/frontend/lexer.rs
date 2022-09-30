@@ -14,6 +14,11 @@ pub struct Token {
 
 #[derive(Logos, Debug, PartialEq)]
 pub enum TokenKind {
+    #[token("let")]
+    Let,
+    #[token("=")]
+    Equal,
+
     #[token("if")]
     If,
     #[token("else")]

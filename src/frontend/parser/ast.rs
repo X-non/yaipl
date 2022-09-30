@@ -7,7 +7,9 @@ pub struct Module {
 
 #[derive(Debug)]
 pub enum Expr {
-    Number(u64),
+    Integer(u64),
+    Float(f64),
+    String(Range<usize>),
 }
 
 #[derive(Debug)]
@@ -34,7 +36,7 @@ pub enum Item {
 #[derive(Debug)]
 pub struct VaribleDecl {
     pub name: Range<usize>,
-    pub intitalizer: Expr,
+    pub intializer: Expr,
 }
 #[derive(Debug)]
 pub enum Stmt {

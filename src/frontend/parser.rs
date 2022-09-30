@@ -1,6 +1,6 @@
 use std::{fmt::Debug, iter::Peekable, ops::Range};
 
-use self::ast::{Block, Expr, IfBranch, IfBranchSet, Item, Module, Stmt};
+use self::ast::{Block, Expr, IfBranch, IfBranchSet, Item, Module, Stmt, VaribleDecl};
 
 use super::lexer::{Lexer, Token, TokenKind};
 mod ast;
@@ -121,7 +121,7 @@ impl<'a> Parser<'a> {
 
                 else_if_branches.push(else_if_branch);
             } else {
-                else_block = Some(self.parse_block()?);
+                else_block = Some(self.parse_block(true)?);
                 break;
             }
         }
@@ -135,20 +135,41 @@ impl<'a> Parser<'a> {
     /// parses the condition and the block of the branch
     fn parse_if_branch(&mut self) -> ParseResult<IfBranch> {
         let condition = self.parse_expr()?;
-        let block = self.parse_block()?;
+        let block = self.parse_block(true)?;
         Ok(IfBranch { condition, block })
     }
 
     fn parse_expr(&mut self) -> ParseResult<Expr> {
         self.peek_map_eat_if(|token| match token.kind {
-            TokenKind::Integer(num) => Ok(Expr::Number(num)),
+            TokenKind::Integer(num) => Ok(Expr::Integer(num)),
+            TokenKind::Float(num) => Ok(Expr::Float(num)),
+            TokenKind::String => Ok(Expr::String(token.span.clone())),
             _ => Err(ParseError::UnexpectedToken(token.span.clone())),
         })?
     }
+    fn try_parse_stmt(&mut self) -> ParseResult<Option<Stmt>> {
+        let token = self.eat_if(|token| match token.kind {
+            TokenKind::If | TokenKind::Let => true,
+            _ => false,
+        })?;
+        let stmt = if let Some(token) = token {
+            match token.kind {
+                TokenKind::If => Stmt::If(self.parse_if()?),
+                TokenKind::Else => Stmt::VaribleDecl(self.parse_varible_decl()?),
+                TokenKind::LeftBrace => Stmt::Block(self.parse_block(false)?),
+                _ => return Err(ParseError::UnexpectedToken(token.span)),
+            }
+        } else {
+            return Ok(None);
+        };
 
-    fn parse_block(&mut self) -> ParseResult<Block> {
-        self.eat_if(|token| token.kind == TokenKind::LeftBrace)?
-            .ok_or(ParseError::Expected(Box::new("Open Brace")))?;
+        Ok(Some(stmt))
+    }
+    fn parse_block(&mut self, consume_open_brace: bool) -> ParseResult<Block> {
+        if consume_open_brace {
+            self.eat_if(|token| token.kind == TokenKind::LeftBrace)?
+                .ok_or(ParseError::Expected(Box::new("Open Brace")))?;
+        }
 
         //TODO Actually parse something in here
         while let Some(token) = self.eat_if(|tok| tok.kind != TokenKind::RightBrace)? {
@@ -161,5 +182,21 @@ impl<'a> Parser<'a> {
             .ok_or(ParseError::Expected(Box::new("Closed Brace")))?;
 
         Ok(Block { stmts: vec![] })
+    }
+
+    fn parse_varible_decl(&mut self) -> ParseResult<VaribleDecl> {
+        let name_span = self.peek_map_eat_if(|tok| match tok.kind {
+            TokenKind::Ident => Ok(tok.span.clone()),
+            _ => Err(ParseError::UnexpectedToken(tok.span.clone())),
+        })??;
+
+        self.eat_if(|token| token.kind == TokenKind::Equal)?
+            .ok_or(ParseError::Expected(Box::new(TokenKind::Equal)))?;
+
+        let intializer = self.parse_expr()?;
+        Ok(VaribleDecl {
+            name: name_span,
+            intializer,
+        })
     }
 }
