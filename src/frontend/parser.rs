@@ -156,7 +156,7 @@ impl<'a> Parser<'a> {
             match token.kind {
                 TokenKind::If => Stmt::If(self.parse_if()?),
                 TokenKind::Else => Stmt::VaribleDecl(self.parse_varible_decl()?),
-                TokenKind::LeftBrace => Stmt::Block(self.parse_block(false)?),
+                TokenKind::OpenBrace => Stmt::Block(self.parse_block(false)?),
                 _ => return Err(ParseError::UnexpectedToken(token.span)),
             }
         } else {
@@ -167,18 +167,18 @@ impl<'a> Parser<'a> {
     }
     fn parse_block(&mut self, consume_open_brace: bool) -> ParseResult<Block> {
         if consume_open_brace {
-            self.eat_if(|token| token.kind == TokenKind::LeftBrace)?
+            self.eat_if(|token| token.kind == TokenKind::OpenBrace)?
                 .ok_or(ParseError::Expected(Box::new("Open Brace")))?;
         }
 
         //TODO Actually parse something in here
-        while let Some(token) = self.eat_if(|tok| tok.kind != TokenKind::RightBrace)? {
-            if token.kind == TokenKind::LeftBrace {
+        while let Some(token) = self.eat_if(|tok| tok.kind != TokenKind::ClosedBrace)? {
+            if token.kind == TokenKind::OpenBrace {
                 todo!("Nested Blocks")
             }
         }
 
-        self.eat_if(|token| matches!(token.kind, TokenKind::RightBrace))?
+        self.eat_if(|token| matches!(token.kind, TokenKind::ClosedBrace))?
             .ok_or(ParseError::Expected(Box::new("Closed Brace")))?;
 
         Ok(Block { stmts: vec![] })

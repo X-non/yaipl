@@ -38,10 +38,10 @@ pub enum TokenKind {
     Ident,
 
     #[token("{")]
-    LeftBrace,
+    OpenBrace,
 
     #[token("}")]
-    RightBrace,
+    ClosedBrace,
 
     #[token("(")]
     LeftParen,
@@ -88,15 +88,15 @@ mod tests {
         assert_eq!(lexer.next().unwrap().kind, TokenKind::If);
         assert_eq!(lexer.next().unwrap().kind, TokenKind::Ident);
 
-        assert_eq!(lexer.next().unwrap().kind, TokenKind::LeftBrace);
+        assert_eq!(lexer.next().unwrap().kind, TokenKind::OpenBrace);
         assert_eq!(lexer.next().unwrap().kind, TokenKind::Ident);
-        assert_eq!(lexer.next().unwrap().kind, TokenKind::RightBrace);
+        assert_eq!(lexer.next().unwrap().kind, TokenKind::ClosedBrace);
 
         assert_eq!(lexer.next().unwrap().kind, TokenKind::Else);
 
-        assert_eq!(lexer.next().unwrap().kind, TokenKind::LeftBrace);
+        assert_eq!(lexer.next().unwrap().kind, TokenKind::OpenBrace);
         assert_eq!(lexer.next().unwrap().kind, TokenKind::Ident);
-        assert_eq!(lexer.next().unwrap().kind, TokenKind::RightBrace);
+        assert_eq!(lexer.next().unwrap().kind, TokenKind::ClosedBrace);
         assert!(lexer.next().is_none());
     }
 }
