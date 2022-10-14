@@ -13,7 +13,9 @@ fn main() {
     // };
     // let mut text = String::new();
     // file.read_to_string(&mut text).unwrap();
-    let text = "if 1 {} else {}";
+    let text = r#"if 1 {
+        let a = "hello"
+    } else {}"#;
 
     match parser::Parser::new(text).parse_program() {
         Ok(module) => {
