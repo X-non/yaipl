@@ -74,7 +74,7 @@ impl<'a> Iterator for Lexer<'a> {
             return None;
         };
 
-        Some(dbg!(token))
+        Some(token)
     }
 }
 
