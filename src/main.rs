@@ -1,9 +1,11 @@
+#![feature(new_uninit)]
 use args::Args;
 use clap::Parser;
 use frontend::parser;
 
 mod args;
 mod frontend;
+mod utils;
 
 fn main() {
     // let args = Args::parse();
