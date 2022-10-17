@@ -23,7 +23,8 @@ pub enum TokenKind {
     If,
     #[token("else")]
     Else,
-
+    #[token(";")]
+    SemiColon,
     #[regex(r"[0-9]([0-9]|_)*", |lex| lex.slice().parse())]
     Integer(u64),
 
@@ -45,6 +46,7 @@ pub enum TokenKind {
 
     #[token("(")]
     LeftParen,
+
     #[token(")")]
     RightParen,
 
@@ -65,7 +67,7 @@ impl<'a> Iterator for Lexer<'a> {
     type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let token = if let Some(kind) = self.logos_lexer.next() {
+        let token = if let Some(kind) = dbg!(self.logos_lexer.next()) {
             Token {
                 kind,
                 span: self.logos_lexer.span(),

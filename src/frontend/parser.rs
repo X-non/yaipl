@@ -1,5 +1,7 @@
 use std::{fmt::Debug, iter::Peekable, ops::Range};
 
+use crate::utils::interner::{Ident, Interner};
+
 use self::ast::{Block, Expr, IfBranch, IfBranchSet, Item, Module, Stmt, VaribleDecl};
 
 use super::lexer::{Lexer, Token, TokenKind};
@@ -11,7 +13,7 @@ pub enum ParseError {
     UnexpectedEOF,
     UnexpectedToken(Range<usize>),
     Expected(Box<dyn 'static + Debug>),
-    WholeProgramNotParsed,
+    WholeProgramNotParsed(Box<Module>),
 }
 
 impl From<EOF> for ParseError {
@@ -22,14 +24,18 @@ impl From<EOF> for ParseError {
 #[derive(Debug)]
 pub struct EOF;
 
-pub struct Parser<'a> {
-    lexer: Peekable<Lexer<'a>>,
+pub struct Parser<'src, 'interner> {
+    lexer: Peekable<Lexer<'src>>,
+    idents: &'interner Interner,
+    src: &'src str,
 }
 
-impl<'a> Parser<'a> {
-    pub fn new(src: &'a str) -> Self {
+impl<'src, 'interner> Parser<'src, 'interner> {
+    pub fn new(src: &'src str, interner: &'interner Interner) -> Self {
         Self {
             lexer: Lexer::new(src).peekable(),
+            idents: interner,
+            src,
         }
     }
 
@@ -67,11 +73,15 @@ impl<'a> Parser<'a> {
     pub fn is_at_eof(&mut self) -> bool {
         self.lexer.peek().is_none()
     }
+    pub fn token_to_ident(&self, token: &Token) -> Ident {
+        assert!(matches!(token.kind, TokenKind::Ident));
+        self.idents.intern(&self.src[token.span.clone()])
+    }
     #[allow(dead_code)]
     pub fn parse_program(&mut self) -> ParseResult<Module> {
         let module = self.parse_module()?;
         if !self.is_at_eof() {
-            return Err(ParseError::WholeProgramNotParsed);
+            return Err(ParseError::WholeProgramNotParsed(Box::new(module)));
         }
 
         Ok(module)
@@ -161,6 +171,12 @@ impl<'a> Parser<'a> {
             _ => return Err(ParseError::UnexpectedToken(token.span)),
         };
 
+        let semi_colon = self.eat_if(|tok| tok.kind == TokenKind::SemiColon)?;
+
+        if semi_colon.is_none() && stmt.needed_semi_colon() {
+            return Err(ParseError::Expected(Box::new(TokenKind::SemiColon)));
+        }
+
         Ok(stmt)
     }
     fn parse_block(&mut self, consume_open_brace: bool) -> ParseResult<Block> {
@@ -186,17 +202,16 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_varible_decl(&mut self) -> ParseResult<VaribleDecl> {
-        let name_span = self.peek_map_eat_if(|tok| match tok.kind {
-            TokenKind::Ident => Ok(tok.span.clone()),
-            _ => Err(ParseError::UnexpectedToken(tok.span.clone())),
-        })??;
+        let name = self.eat_if(|tok| matches!(tok.kind, TokenKind::Ident))?;
+
+        let name = name.ok_or(ParseError::UnexpectedToken(self.peek()?.span.clone()))?;
 
         self.eat_if(|token| token.kind == TokenKind::Equal)?
             .ok_or(ParseError::Expected(Box::new(TokenKind::Equal)))?;
 
         let intializer = self.parse_expr()?;
         Ok(VaribleDecl {
-            name: name_span,
+            name: self.token_to_ident(&name),
             intializer,
         })
     }
