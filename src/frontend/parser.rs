@@ -2,10 +2,10 @@ use std::{fmt::Debug, iter::Peekable, ops::Range};
 
 use crate::utils::interner::{Ident, Interner};
 
-use self::ast::{Block, Expr, IfBranch, IfBranchSet, Item, Module, Stmt, VaribleDecl};
+use self::ast::{Ast, Block, Expr, FnDecl, IfBranch, IfBranchSet, Item, Module, Stmt, VaribleDecl};
 
 use super::lexer::{Lexer, Token, TokenKind};
-mod ast;
+pub mod ast;
 
 pub type ParseResult<T> = Result<T, ParseError>;
 #[derive(Debug)]
@@ -78,7 +78,7 @@ impl<'src, 'interner> Parser<'src, 'interner> {
         self.idents.intern(&self.src[token.span.clone()])
     }
     #[allow(dead_code)]
-    pub fn parse_program(&mut self) -> ParseResult<Module> {
+    pub fn parse_root_module(&mut self) -> ParseResult<Module> {
         let module = self.parse_module()?;
         if !self.is_at_eof() {
             return Err(ParseError::WholeProgramNotParsed(Box::new(module)));
@@ -89,31 +89,24 @@ impl<'src, 'interner> Parser<'src, 'interner> {
 
     fn parse_module(&mut self) -> ParseResult<Module> {
         let mut items = Vec::new();
-        while let Some(item) = self.try_parse_any_item()? {
-            items.push(item)
+        while !self.is_at_eof() {
+            items.push(self.parse_item()?)
         }
 
         Ok(Module { items })
     }
 
-    fn try_parse_any_item(&mut self) -> ParseResult<Option<Item>> {
-        let start_of_item = self
-            .eat_if(|tok| matches!(&tok.kind, TokenKind::If))
-            .ok()
-            .flatten();
+    fn parse_item(&mut self) -> ParseResult<Item> {
+        let start_of_item = self.eat()?;
 
-        let start_of_item = match start_of_item {
-            Some(start) => start,
-            None => return Ok(None),
-        };
         let item = match start_of_item.kind {
-            TokenKind::If => {
-                let branch_set = dbg!(self.parse_if())?;
-                Item::If(branch_set)
+            TokenKind::Func => {
+                let fn_decl = self.parse_fn_decl()?;
+                Item::FnDecl(fn_decl)
             }
-            _ => unreachable!(),
+            _ => return Err(ParseError::UnexpectedToken(start_of_item.span)),
         };
-        Ok(Some(item))
+        Ok(item)
     }
 
     fn parse_if(&mut self) -> ParseResult<IfBranchSet> {
@@ -154,12 +147,16 @@ impl<'src, 'interner> Parser<'src, 'interner> {
     }
 
     fn parse_expr(&mut self) -> ParseResult<Expr> {
-        self.peek_map_eat_if(|token| match token.kind {
-            TokenKind::Integer(num) => Ok(Expr::Integer(num)),
-            TokenKind::Float(num) => Ok(Expr::Float(num)),
-            TokenKind::String => Ok(Expr::String(token.span.clone())),
-            _ => Err(ParseError::UnexpectedToken(token.span.clone())),
-        })?
+        let token = self.eat()?;
+        let expr = match token.kind {
+            TokenKind::Integer(num) => Expr::Integer(num),
+            TokenKind::Float(num) => Expr::Float(num),
+            TokenKind::Ident => Expr::Variable(self.token_to_ident(&token)),
+            TokenKind::String => Expr::String(token.span.clone()),
+            _ => return Err(ParseError::UnexpectedToken(token.span.clone())),
+        };
+
+        Ok(expr)
     }
     fn parse_stmt(&mut self) -> ParseResult<Stmt> {
         let token = self.eat()?;
@@ -214,5 +211,16 @@ impl<'src, 'interner> Parser<'src, 'interner> {
             name: self.token_to_ident(&name),
             intializer,
         })
+    }
+
+    fn parse_fn_decl(&mut self) -> ParseResult<FnDecl> {
+        let name = self
+            .eat_if(|token| token.kind == TokenKind::Ident)?
+            .ok_or(ParseError::Expected(Box::new(TokenKind::Ident)))?;
+
+        let name = self.token_to_ident(&name);
+        let block = self.parse_block(true)?;
+
+        Ok(FnDecl { name, block })
     }
 }

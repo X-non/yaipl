@@ -6,24 +6,32 @@ use std::{
     str::from_utf8_unchecked,
 };
 
+use self::unsafe_str::UnsafeValidStr;
+
 // https://matklad.github.io/2020/03/22/fast-simple-rust-interner.html
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Ident(u32);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct UnsafeValidStr(&'static str);
+mod unsafe_str {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub(crate) struct UnsafeValidStr(&'static str);
 
-impl UnsafeValidStr {
-    ///SAFTEY: The string must be valid as long as Self exists
-    unsafe fn new(text: &str) -> Self {
-        Self(&*(text as *const str))
+    impl UnsafeValidStr {
+        ///SAFTEY: The string must be valid as long as Self exists
+        pub(crate) unsafe fn new(text: &str) -> Self {
+            Self(&*(text as *const str))
+        }
+        ///SAFTEY: Must make sure the unbound lifetime doesnt outlive the storage of the str
+        pub(crate) unsafe fn get<'unbound>(self) -> &'unbound str {
+            self.0
+        }
     }
 }
 
 pub struct Interner {
     map: RefCell<HashMap<UnsafeValidStr, Ident>>,
     idents: RefCell<Vec<UnsafeValidStr>>,
-    buffer: StrArena,
+    arena: StrArena,
 }
 
 impl Interner {
@@ -31,12 +39,19 @@ impl Interner {
         Interner {
             map: Default::default(),
             idents: Default::default(),
-            buffer: StrArena::with_capacity(4096),
+            arena: StrArena::with_capacity(4096),
         }
     }
+    pub fn debug_dump_strs(&self) {
+        let idents: &[_] = &self.idents.borrow();
+        for (ident, &text) in idents.iter().enumerate() {
+            println!("{:?}, {:?}", Ident(ident as u32), unsafe { text.get() });
+        }
+    }
+
     pub fn intern(&self, text: &str) -> Ident {
         //SAFTEY text is valid as long as self and therefore valid under the hash
-        if let Some(&id) = self.map.borrow().get(&unsafe { UnsafeValidStr::new(text) }) {
+        if let Some(id) = self.get_ident(text) {
             return id;
         }
 
@@ -49,18 +64,36 @@ impl Interner {
         );
 
         //SAFTEY: the allocated str is valid as long as the buffer and we only use it while self is alive
-        let interned_text = unsafe { UnsafeValidStr::new(self.buffer.alloc(text)) };
+        let interned_text = unsafe { UnsafeValidStr::new(self.arena.alloc(text)) };
         self.map.borrow_mut().insert(interned_text, id);
         self.idents.borrow_mut().push(interned_text);
 
-        debug_assert!(self.lookup(id) == interned_text.0);
-        debug_assert!(self.intern(interned_text.0) == id);
+        //SAFTEY the arena lives
+        unsafe {
+            debug_assert!(self.lookup(id) == interned_text.get());
+            debug_assert!(self.intern(interned_text.get()) == id);
+        }
 
         id
     }
 
+    pub fn get_ident(&self, text: &str) -> Option<Ident> {
+        self.map
+            .borrow()
+            .get(&unsafe { UnsafeValidStr::new(text) })
+            .copied()
+    }
+
     pub fn lookup(&self, ident: Ident) -> &str {
-        self.idents.borrow()[ident.0 as usize].0
+        // SAFTEY: the lifetime of the arena is the same as &self
+        // and the UnsafeValidStrs are valid as long as the arena lives
+        unsafe { self.idents.borrow()[ident.0 as usize].get() }
+    }
+    pub fn arena_space_capacity(&self) -> (usize, usize) {
+        (
+            self.arena.avalible_cap(),
+            self.arena.chunks.borrow().last().unwrap().elements.len(),
+        )
     }
 }
 
