@@ -9,7 +9,7 @@ pub struct AnnotatedAst {
 }
 
 impl AnnotatedAst {
-    fn new(ast: Ast) -> Self {
+    fn unannotated(ast: Ast) -> Self {
         Self {
             ast,
             table: SymbolTable::new(),
@@ -23,6 +23,8 @@ pub struct DefPlace;
 pub enum Type {
     Bool,
     String,
+    Float,
+    Int,
 }
 
 #[derive(Debug)]
@@ -66,12 +68,9 @@ impl SymbolTable {
 
 impl Ast {
     pub fn annotate(self) -> AnnotatedAst {
-        let mut symbols = SymbolTable::new();
-        symbols.regester_top_level(&self.root);
+        let mut unannotated = AnnotatedAst::unannotated(self);
 
-        AnnotatedAst {
-            ast: self,
-            table: symbols,
-        }
+        unannotated.table.regester_top_level(&unannotated.ast.root);
+        unannotated
     }
 }
