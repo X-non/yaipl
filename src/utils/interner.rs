@@ -1,10 +1,9 @@
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
-    marker::PhantomData,
     mem::MaybeUninit,
     slice::from_raw_parts,
-    str::from_utf8_unchecked,
+    str,
 };
 pub mod branded;
 mod interned;
@@ -158,12 +157,11 @@ impl StrArena {
         // the grow ensures there is space for str and as such safe to offset
         self.start.set(start_of_alloc.offset(len as isize));
 
-        std::str::from_utf8_unchecked(from_raw_parts(start_of_alloc, len))
+        str::from_utf8_unchecked(from_raw_parts(start_of_alloc, len))
     }
 
     fn has_space(&self, needed: usize) -> bool {
-        let capacity = self.avalible_cap();
-        needed <= capacity
+        needed <= self.avalible_cap()
     }
 
     fn grow(&self, additional: usize) {
