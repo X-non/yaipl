@@ -1,5 +1,15 @@
-#[derive(Debug)]
 pub struct Interned<Brand>(u32, PhantomData<Brand>);
+
+impl<Brand> std::fmt::Debug for Interned<Brand>
+where
+    Brand: Debug + Default,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple(&format!("Interned<{:?}>", Brand::default()))
+            .field(&self.0)
+            .finish()
+    }
+}
 
 impl<Brand> Eq for Interned<Brand> {}
 
@@ -14,7 +24,7 @@ impl<Brand> std::hash::Hash for Interned<Brand> {
         self.0.hash(state);
     }
 }
-use std::marker::PhantomData;
+use std::{fmt::Debug, marker::PhantomData};
 
 impl<Brand> Copy for Interned<Brand> {}
 
