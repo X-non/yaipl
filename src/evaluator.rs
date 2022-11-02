@@ -17,12 +17,32 @@ pub fn evaluate(ast: AnnotatedAst) -> Result<(), RuntimeError> {
 pub enum RuntimeError {
     TypeMismatch { expected: Type, fount: Type },
     UndefVar(Interned<Ident>),
+    Overflow,
 }
 #[derive(Debug, Clone, PartialEq)]
 pub enum RuntimeValue {
     True,
     False,
     String,
+    Float(f64),
+    Int(i64),
+}
+
+impl TryFrom<u64> for RuntimeValue {
+    type Error = RuntimeError;
+
+    fn try_from(v: u64) -> Result<Self, Self::Error> {
+        match v.try_into() {
+            Ok(v) => Ok(Self::Int(v)),
+            Err(_) => Err(RuntimeError::Overflow),
+        }
+    }
+}
+
+impl From<f64> for RuntimeValue {
+    fn from(v: f64) -> Self {
+        Self::Float(v)
+    }
 }
 
 impl RuntimeValue {
@@ -40,6 +60,8 @@ impl RuntimeValue {
         match self {
             RuntimeValue::True | RuntimeValue::False => Type::Bool,
             RuntimeValue::String => Type::String,
+            RuntimeValue::Float(_) => Type::Float,
+            RuntimeValue::Int(_) => Type::Int,
         }
     }
 }
@@ -135,8 +157,8 @@ impl Evaluatable for Expr {
 
     fn evaluate(&self, context: &Interpreter) -> Result<Self::Value, RuntimeError> {
         match self {
-            &Expr::Integer(int) => todo!(),
-            &Expr::Float(float) => todo!(),
+            &Expr::Integer(int) => Ok(int.try_into()?),
+            &Expr::Float(float) => Ok(float.into()),
             Expr::String(text) => todo!(),
             &Expr::Variable(name) => {
                 match context.lookup(name).ok_or(RuntimeError::UndefVar(name))? {
