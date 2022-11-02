@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use crate::utils::interner::{
     branded::{Ident, Identifier},
-    Interned, Interner,
+    Interner,
 };
 
 pub struct Ast {
