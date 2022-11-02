@@ -3,14 +3,14 @@ pub use self::evaluatable::Evaluatable;
 
 use crate::{
     frontend::{
-        parser::ast::{Block, Expr, IfBranchSet, Module, Stmt},
-        semantic_analysis::{SymbolEntry, SymbolTable, Type},
+        parser::ast::{Block, Expr, IfBranch, IfBranchSet, Module, Stmt},
+        semantic_analysis::{AnnotatedAst, SymbolEntry, SymbolTable, Type},
     },
     utils::interner::{branded::Ident, Interned, Interner},
 };
 
-pub fn evaluate(root: Module, idents: Interner<Ident>) -> Result<(), RuntimeError> {
-    Interpreter::new(root, idents).run()
+pub fn evaluate(ast: AnnotatedAst) -> Result<(), RuntimeError> {
+    Interpreter::new(ast).run()
 }
 
 #[derive(Debug)]
@@ -25,6 +25,25 @@ pub enum RuntimeValue {
     String,
 }
 
+impl RuntimeValue {
+    fn assert_type(&self, ty: Type) -> Result<(), RuntimeError> {
+        if self.ty() == ty {
+            Ok(())
+        } else {
+            Err(RuntimeError::TypeMismatch {
+                expected: ty,
+                fount: self.ty(),
+            })
+        }
+    }
+    const fn ty(&self) -> Type {
+        match self {
+            RuntimeValue::True | RuntimeValue::False => Type::Bool,
+            RuntimeValue::String => Type::String,
+        }
+    }
+}
+
 #[allow(dead_code)]
 pub struct Interpreter {
     root: Module,
@@ -33,9 +52,12 @@ pub struct Interpreter {
 }
 
 impl Interpreter {
-    fn new(root: Module, idents: Interner<Ident>) -> Self {
-        // Self { root, idents , };
-        todo!()
+    fn new(ast: AnnotatedAst) -> Self {
+        Self {
+            root: ast.ast.root,
+            idents: ast.ast.interner,
+            symbol_table: ast.table,
+        }
     }
 
     fn run(&mut self) -> Result<(), RuntimeError> {
@@ -81,20 +103,31 @@ impl Evaluatable for Stmt {
 
 impl Evaluatable for IfBranchSet {
     fn evaluate(&self, context: &Interpreter) -> Result<Self::Value, RuntimeError> {
-        if self.if_branch.condition.evaluate(context)? == RuntimeValue::True {
-            self.if_branch.block.evaluate(context)?;
-        }
+        self.if_branch.evaluate(context)?;
+
         for branch in &self.else_if_branches {
-            if branch.condition.evaluate(context)? == RuntimeValue::True {
-                self.if_branch.block.evaluate(context)?;
-                return Ok(());
-            }
+            branch.evaluate(context)?;
         }
         if let Some(else_block) = &self.else_block {
             else_block.evaluate(context)?;
         }
         Ok(())
     }
+}
+
+impl Evaluatable for IfBranch {
+    fn evaluate(&self, context: &Interpreter) -> Result<(), RuntimeError> {
+        let conditional = self.condition.evaluate(context)?;
+        conditional.assert_type(Type::Bool)?;
+        if conditional == RuntimeValue::True {
+            self.block.evaluate(context)?;
+        }
+        Ok(())
+    }
+
+    type Error = RuntimeError;
+
+    type Value = ();
 }
 
 impl Evaluatable for Expr {

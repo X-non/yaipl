@@ -19,9 +19,10 @@ impl AnnotatedAst {
 
 #[derive(Debug)]
 pub struct DefPlace;
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Type {
     Bool,
+    String,
 }
 
 #[derive(Debug)]
