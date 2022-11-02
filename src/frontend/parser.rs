@@ -1,6 +1,6 @@
 use std::{fmt::Debug, iter::Peekable, ops::Range};
 
-use crate::utils::interner::{Ident, Interner};
+use crate::utils::interner::{branded::Ident, Interned, Interner};
 
 use self::ast::{Ast, Block, Expr, FnDecl, IfBranch, IfBranchSet, Item, Module, Stmt, VaribleDecl};
 
@@ -26,12 +26,12 @@ pub struct EOF;
 
 pub struct Parser<'src, 'interner> {
     lexer: Peekable<Lexer<'src>>,
-    idents: &'interner Interner,
+    idents: &'interner Interner<Ident>,
     src: &'src str,
 }
 
 impl<'src, 'interner> Parser<'src, 'interner> {
-    pub fn new(src: &'src str, interner: &'interner Interner) -> Self {
+    pub fn new(src: &'src str, interner: &'interner Interner<Ident>) -> Self {
         Self {
             lexer: Lexer::new(src).peekable(),
             idents: interner,
@@ -73,7 +73,7 @@ impl<'src, 'interner> Parser<'src, 'interner> {
     pub fn is_at_eof(&mut self) -> bool {
         self.lexer.peek().is_none()
     }
-    pub fn token_to_ident(&self, token: &Token) -> Ident {
+    pub fn token_to_ident(&self, token: &Token) -> Interned<Ident> {
         assert!(matches!(token.kind, TokenKind::Ident));
         self.idents.intern(&self.src[token.span.clone()])
     }

@@ -1,16 +1,19 @@
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
+    marker::PhantomData,
     mem::MaybeUninit,
     slice::from_raw_parts,
     str::from_utf8_unchecked,
 };
+pub mod branded;
+mod interned;
+
+use crate::utils::interner::branded::Identifier;
 
 use self::unsafe_str::UnsafeValidStr;
 
-// https://matklad.github.io/2020/03/22/fast-simple-rust-interner.html
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Ident(u32);
+pub use interned::Interned;
 
 mod unsafe_str {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -28,13 +31,14 @@ mod unsafe_str {
     }
 }
 
-pub struct Interner {
-    map: RefCell<HashMap<UnsafeValidStr, Ident>>,
+// https://matklad.github.io/2020/03/22/fast-simple-rust-interner.html
+pub struct Interner<Brand> {
+    map: RefCell<HashMap<UnsafeValidStr, Interned<Brand>>>,
     idents: RefCell<Vec<UnsafeValidStr>>,
     arena: StrArena,
 }
 
-impl Interner {
+impl<Brand> Interner<Brand> {
     pub fn new() -> Self {
         Interner {
             map: Default::default(),
@@ -45,17 +49,19 @@ impl Interner {
     pub fn debug_dump_strs(&self) {
         let idents: &[_] = &self.idents.borrow();
         for (ident, &text) in idents.iter().enumerate() {
-            println!("{:?}, {:?}", Ident(ident as u32), unsafe { text.get() });
+            println!("{:?}, {:?}", Identifier::new(ident as u32), unsafe {
+                text.get()
+            });
         }
     }
 
-    pub fn intern(&self, text: &str) -> Ident {
+    pub fn intern(&self, text: &str) -> Interned<Brand> {
         //SAFTEY text is valid as long as self and therefore valid under the hash
         if let Some(id) = self.get_ident(text) {
             return id;
         }
 
-        let id = Ident(
+        let id = Interned::new(
             self.map
                 .borrow()
                 .len()
@@ -77,17 +83,17 @@ impl Interner {
         id
     }
 
-    pub fn get_ident(&self, text: &str) -> Option<Ident> {
+    pub fn get_ident(&self, text: &str) -> Option<Interned<Brand>> {
         self.map
             .borrow()
             .get(&unsafe { UnsafeValidStr::new(text) })
             .copied()
     }
 
-    pub fn lookup(&self, ident: Ident) -> &str {
+    pub fn lookup(&self, ident: Interned<Brand>) -> &str {
         // SAFTEY: the lifetime of the arena is the same as &self
         // and the UnsafeValidStrs are valid as long as the arena lives
-        unsafe { self.idents.borrow()[ident.0 as usize].get() }
+        unsafe { self.idents.borrow()[ident.value() as usize].get() }
     }
     pub fn arena_space_capacity(&self) -> (usize, usize) {
         (

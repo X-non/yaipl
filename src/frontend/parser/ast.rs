@@ -1,14 +1,17 @@
 use std::ops::Range;
 
-use crate::utils::interner::{Ident, Interner};
+use crate::utils::interner::{
+    branded::{Ident, Identifier},
+    Interned, Interner,
+};
 
 pub struct Ast {
     pub root: Module,
-    pub interner: Interner,
+    pub interner: Interner<Ident>,
 }
 
 impl Ast {
-    pub fn new(root: Module, interner: Interner) -> Self {
+    pub fn new(root: Module, interner: Interner<Ident>) -> Self {
         Self { root, interner }
     }
 }
@@ -23,7 +26,7 @@ pub enum Expr {
     Integer(u64),
     Float(f64),
     String(Range<usize>),
-    Variable(Ident),
+    Variable(Identifier),
 }
 
 #[derive(Debug, Clone)]
@@ -56,13 +59,13 @@ pub enum Item {
 
 #[derive(Debug, Clone)]
 pub struct FnDecl {
-    pub name: Ident,
+    pub name: Identifier,
     pub block: Block,
 }
 
 #[derive(Debug, Clone)]
 pub struct VaribleDecl {
-    pub name: Ident,
+    pub name: Identifier,
     pub intializer: Expr,
 }
 #[derive(Debug, Clone)]

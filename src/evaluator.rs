@@ -6,17 +6,17 @@ use crate::{
         parser::ast::{Block, Expr, IfBranchSet, Module, Stmt},
         semantic_analysis::{SymbolEntry, SymbolTable, Type},
     },
-    utils::interner::{Ident, Interner},
+    utils::interner::{branded::Ident, Interned, Interner},
 };
 
-pub fn evaluate(root: Module, idents: Interner) -> Result<(), RuntimeError> {
+pub fn evaluate(root: Module, idents: Interner<Ident>) -> Result<(), RuntimeError> {
     Interpreter::new(root, idents).run()
 }
 
 #[derive(Debug)]
 pub enum RuntimeError {
     TypeMismatch { expected: Type, fount: Type },
-    UndefVar(Ident),
+    UndefVar(Interned<Ident>),
 }
 #[derive(Debug, Clone, PartialEq)]
 pub enum RuntimeValue {
@@ -28,12 +28,12 @@ pub enum RuntimeValue {
 #[allow(dead_code)]
 pub struct Interpreter {
     root: Module,
-    idents: Interner,
+    idents: Interner<Ident>,
     symbol_table: SymbolTable,
 }
 
 impl Interpreter {
-    fn new(root: Module, idents: Interner) -> Self {
+    fn new(root: Module, idents: Interner<Ident>) -> Self {
         // Self { root, idents , };
         todo!()
     }
@@ -50,7 +50,7 @@ impl Interpreter {
         Ok(())
     }
 
-    fn lookup(&self, ident: Ident) -> Option<&SymbolEntry> {
+    fn lookup(&self, ident: Interned<Ident>) -> Option<&SymbolEntry> {
         self.symbol_table.get(ident)
     }
 
