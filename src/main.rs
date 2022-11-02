@@ -38,9 +38,12 @@ fn main() {
         Ok(module) => {
             println!("{:#?}", module);
             let ast = Ast::new(module, interner).annotate();
-            evaluator::evaluate(ast);
+
+            ast.ast.interner.debug_dump_strs();
+
+            println!("{:#?}", evaluator::evaluate(ast));
+
             // println!("{:#?}", ast.table);
-            // ast.ast.interner.debug_dump_strs()
         }
         Err(err) => match err {
             parser::ParseError::UnexpectedToken(r) => {
