@@ -1,6 +1,7 @@
 #![feature(new_uninit)]
+#![feature(associated_type_defaults)]
 use args::Args;
-use clap::Parser;
+
 use frontend::parser;
 use utils::interner::Interner;
 
@@ -25,7 +26,6 @@ fn main() {
             let condition = 2;
             if condition {
                 let a = "hello";
-                
             } else if "Hello" {
                 
             } else{

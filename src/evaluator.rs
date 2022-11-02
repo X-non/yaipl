@@ -1,60 +1,28 @@
 mod evaluatable;
 pub use self::evaluatable::Evaluatable;
-use std::collections::HashMap;
 
 use crate::{
-    frontend::parser::ast::{Block, FnDecl, Item, Module},
+    frontend::{
+        parser::ast::{Block, Expr, IfBranchSet, Module, Stmt},
+        semantic_analysis::{SymbolEntry, SymbolTable, Type},
+    },
     utils::interner::{Ident, Interner},
 };
 
-pub fn interpret(root: Module, idents: Interner) {
+pub fn evaluate(root: Module, idents: Interner) -> Result<(), RuntimeError> {
     Interpreter::new(root, idents).run()
 }
 
 #[derive(Debug)]
-pub enum RuntimeError {}
-
-#[derive(Debug)]
-struct DefPlace;
-#[derive(Debug)]
-struct TypeKind;
-
-#[derive(Debug)]
-enum SymbolEntry {
-    Type { def: DefPlace, kind: TypeKind },
-    Variable { def: DefPlace, is_def: bool },
-    Func { def: FnDecl },
+pub enum RuntimeError {
+    TypeMismatch { expected: Type, fount: Type },
+    UndefVar(Ident),
 }
-#[derive(Debug)]
-pub struct SymbolTable {
-    table: HashMap<Ident, SymbolEntry>,
-}
-
-impl SymbolTable {
-    pub fn new() -> Self {
-        Self {
-            table: HashMap::new(),
-        }
-    }
-
-    pub(crate) fn regester_top_level(&mut self, module: &Module) {
-        for item in &module.items {
-            self.regester_item(item);
-        }
-    }
-
-    fn regester_item(&mut self, item: &Item) {
-        match item {
-            Item::FnDecl(decl @ FnDecl { name, .. }) => {
-                let decl = SymbolEntry::Func { def: decl.clone() };
-                self.table.insert(*name, decl);
-            }
-        }
-    }
-
-    fn get(&self, ident: Ident) -> Option<&SymbolEntry> {
-        self.table.get(&ident)
-    }
+#[derive(Debug, Clone, PartialEq)]
+pub enum RuntimeValue {
+    True,
+    False,
+    String,
 }
 
 #[allow(dead_code)]
@@ -70,14 +38,16 @@ impl Interpreter {
         todo!()
     }
 
-    fn run(&mut self) {
+    fn run(&mut self) -> Result<(), RuntimeError> {
         // let items = &self.root.items;
         let main_fn = self.lookup_str("main").unwrap();
         if let SymbolEntry::Func { def: decl } = main_fn {
-            // self.interpret(&decl.block);
+            decl.block.evaluate(self)?;
         } else {
             panic!("No main function")
         }
+
+        Ok(())
     }
 
     fn lookup(&self, ident: Ident) -> Option<&SymbolEntry> {
@@ -88,16 +58,65 @@ impl Interpreter {
         let ident = self.idents.get_ident(name)?;
         self.lookup(ident)
     }
+}
 
-    fn interpret_block(&self, block: &Block) -> Result<(), RuntimeError> {
-        for stmt in block.stmts() {}
+impl Evaluatable for Block {
+    fn evaluate(&self, context: &Interpreter) -> Result<Self::Value, RuntimeError> {
+        for stmt in self.stmts() {
+            stmt.evaluate(context)?
+        }
         Ok(())
     }
+}
+impl Evaluatable for Stmt {
+    fn evaluate(&self, context: &Interpreter) -> Result<Self::Value, RuntimeError> {
+        match self {
+            Stmt::If(set) => set.evaluate(context)?,
+            Stmt::Block(block) => block.evaluate(context)?,
+            Stmt::VaribleDecl(decl) => println!("{decl:?}"),
+        }
+        Ok(())
+    }
+}
 
-    fn evaluate<I>(&mut self, bla: I) -> Result<I::Value, I::Error>
-    where
-        I: Evaluatable,
-    {
-        bla.eval(self)
+impl Evaluatable for IfBranchSet {
+    fn evaluate(&self, context: &Interpreter) -> Result<Self::Value, RuntimeError> {
+        if self.if_branch.condition.evaluate(context)? == RuntimeValue::True {
+            self.if_branch.block.evaluate(context)?;
+        }
+        for branch in &self.else_if_branches {
+            if branch.condition.evaluate(context)? == RuntimeValue::True {
+                self.if_branch.block.evaluate(context)?;
+                return Ok(());
+            }
+        }
+        if let Some(else_block) = &self.else_block {
+            else_block.evaluate(context)?;
+        }
+        Ok(())
+    }
+}
+
+impl Evaluatable for Expr {
+    type Value = RuntimeValue;
+
+    fn evaluate(&self, context: &Interpreter) -> Result<Self::Value, RuntimeError> {
+        match self {
+            &Expr::Integer(int) => todo!(),
+            &Expr::Float(float) => todo!(),
+            Expr::String(text) => todo!(),
+            &Expr::Variable(name) => {
+                match context.lookup(name).ok_or(RuntimeError::UndefVar(name))? {
+                    SymbolEntry::Type { def, kind } => todo!(),
+                    SymbolEntry::Func { def } => todo!(),
+                    SymbolEntry::Variable { def, is_def } => {
+                        if !*is_def {
+                            return Err(RuntimeError::UndefVar(name));
+                        }
+                        Ok(todo!())
+                    }
+                }
+            }
+        }
     }
 }
