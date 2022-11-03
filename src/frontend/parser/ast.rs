@@ -25,6 +25,7 @@ pub struct Module {
 pub enum Expr {
     Integer(u64),
     Float(f64),
+    Bool(bool),
     String(Range<usize>),
     Variable(Identifier),
 }

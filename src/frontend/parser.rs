@@ -2,7 +2,7 @@ use std::{fmt::Debug, iter::Peekable, ops::Range};
 
 use crate::utils::interner::{branded::Ident, Interned, Interner};
 
-use self::ast::{Ast, Block, Expr, FnDecl, IfBranch, IfBranchSet, Item, Module, Stmt, VaribleDecl};
+use self::ast::{Block, Expr, FnDecl, IfBranch, IfBranchSet, Item, Module, Stmt, VaribleDecl};
 
 use super::lexer::{Lexer, Token, TokenKind};
 pub mod ast;
@@ -153,6 +153,8 @@ impl<'src, 'interner> Parser<'src, 'interner> {
             TokenKind::Float(num) => Expr::Float(num),
             TokenKind::Ident => Expr::Variable(self.token_to_ident(&token)),
             TokenKind::String => Expr::String(token.span.clone()),
+            TokenKind::True => Expr::Bool(true),
+            TokenKind::False => Expr::Bool(false),
             _ => return Err(ParseError::UnexpectedToken(token.span.clone())),
         };
 
