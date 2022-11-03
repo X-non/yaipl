@@ -6,5 +6,5 @@ where
 {
     type Error = RuntimeError;
     type Value = ();
-    fn evaluate(&self, context: &Interpreter) -> Result<Self::Value, Self::Error>;
+    fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, Self::Error>;
 }
