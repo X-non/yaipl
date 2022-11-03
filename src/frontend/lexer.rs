@@ -28,7 +28,10 @@ pub enum TokenKind {
 
     #[token("fn")]
     Func,
-
+    #[token("true")]
+    True,
+    #[token("false")]
+    False,
     #[regex(r"[0-9]([0-9]|_)*", |lex| lex.slice().parse())]
     Integer(u64),
 
