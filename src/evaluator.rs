@@ -1,4 +1,6 @@
 mod evaluatable;
+use std::collections::{hash_map::Entry, HashMap};
+
 pub use self::evaluatable::Evaluatable;
 
 use crate::{
@@ -6,7 +8,10 @@ use crate::{
         parser::ast::{Block, Expr, IfBranch, IfBranchSet, Module, Stmt},
         semantic_analysis::{AnnotatedAst, SymbolEntry, SymbolTable, Type},
     },
-    utils::interner::{branded::Ident, Interned, Interner},
+    utils::interner::{
+        branded::{Ident, Identifier},
+        Interned, Interner,
+    },
 };
 
 pub fn evaluate(ast: AnnotatedAst) -> Result<(), RuntimeError> {
@@ -16,8 +21,10 @@ pub fn evaluate(ast: AnnotatedAst) -> Result<(), RuntimeError> {
 #[derive(Debug)]
 pub enum RuntimeError {
     TypeMismatch { expected: Type, fount: Type },
-    UndefVar(Interned<Ident>),
+    Undefined(Interned<Ident>),
     Overflow,
+    Shadowed(Interned<Ident>),
+    Undeclared(Interned<Ident>),
 }
 #[derive(Debug, Clone, PartialEq)]
 pub enum RuntimeValue {
@@ -65,12 +72,22 @@ impl RuntimeValue {
         }
     }
 }
-
+struct Enviroment {
+    map: HashMap<Identifier, Option<RuntimeValue>>,
+}
+impl Enviroment {
+    fn new() -> Enviroment {
+        Self {
+            map: Default::default(),
+        }
+    }
+}
 #[allow(dead_code)]
 pub struct Interpreter {
     root: Module,
     idents: Interner<Ident>,
     symbol_table: SymbolTable,
+    enviroment: Enviroment,
 }
 
 impl Interpreter {
@@ -79,12 +96,13 @@ impl Interpreter {
             root: ast.ast.root,
             idents: ast.ast.interner,
             symbol_table: ast.table,
+            enviroment: Enviroment::new(),
         }
     }
 
     fn run(&mut self) -> Result<(), RuntimeError> {
         // let items = &self.root.items;
-        let main_fn = self.lookup_str("main").unwrap();
+        let main_fn = self.lookup_str("main").unwrap().clone();
         if let SymbolEntry::Func { def: decl } = main_fn {
             decl.block.evaluate(self)?;
         } else {
@@ -102,10 +120,31 @@ impl Interpreter {
         let ident = self.idents.get_ident(name)?;
         self.lookup(ident)
     }
+
+    fn set(&mut self, name: Identifier, value: RuntimeValue) -> Result<(), RuntimeError> {
+        let mut entry = match self.enviroment.map.entry(name) {
+            Entry::Occupied(entry) => entry,
+            Entry::Vacant(_) => return Err(RuntimeError::Undefined(name)),
+        };
+
+        entry.insert(Some(value));
+        Ok(())
+    }
+
+    fn define(&mut self, name: Identifier) -> Result<&mut Option<RuntimeValue>, RuntimeError> {
+        match self.enviroment.map.entry(name) {
+            Entry::Occupied(_) => Err(RuntimeError::Shadowed(name)),
+            Entry::Vacant(entry) => Ok(entry.insert(None)),
+        }
+    }
+    fn def_set(&mut self, name: Identifier, value: RuntimeValue) -> Result<(), RuntimeError> {
+        *self.define(name)? = Some(value);
+        Ok(())
+    }
 }
 
 impl Evaluatable for Block {
-    fn evaluate(&self, context: &Interpreter) -> Result<Self::Value, RuntimeError> {
+    fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, RuntimeError> {
         for stmt in self.stmts() {
             stmt.evaluate(context)?
         }
@@ -113,18 +152,22 @@ impl Evaluatable for Block {
     }
 }
 impl Evaluatable for Stmt {
-    fn evaluate(&self, context: &Interpreter) -> Result<Self::Value, RuntimeError> {
+    fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, RuntimeError> {
         match self {
             Stmt::If(set) => set.evaluate(context)?,
             Stmt::Block(block) => block.evaluate(context)?,
-            Stmt::VaribleDecl(decl) => println!("{decl:?}"),
+            Stmt::VaribleDecl(decl) => {
+                eprintln!("{decl:?}");
+                let initalizer = decl.intializer.evaluate(context)?;
+                context.def_set(decl.name, initalizer)?;
+            }
         }
         Ok(())
     }
 }
 
 impl Evaluatable for IfBranchSet {
-    fn evaluate(&self, context: &Interpreter) -> Result<Self::Value, RuntimeError> {
+    fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, RuntimeError> {
         self.if_branch.evaluate(context)?;
 
         for branch in &self.else_if_branches {
@@ -138,7 +181,7 @@ impl Evaluatable for IfBranchSet {
 }
 
 impl Evaluatable for IfBranch {
-    fn evaluate(&self, context: &Interpreter) -> Result<(), RuntimeError> {
+    fn evaluate(&self, context: &mut Interpreter) -> Result<(), RuntimeError> {
         let conditional = self.condition.evaluate(context)?;
         conditional.assert_type(Type::Bool)?;
         if conditional == RuntimeValue::True {
@@ -155,23 +198,19 @@ impl Evaluatable for IfBranch {
 impl Evaluatable for Expr {
     type Value = RuntimeValue;
 
-    fn evaluate(&self, context: &Interpreter) -> Result<Self::Value, RuntimeError> {
+    fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, RuntimeError> {
         match self {
             &Expr::Integer(int) => Ok(int.try_into()?),
             &Expr::Float(float) => Ok(float.into()),
             Expr::String(text) => todo!(),
-            &Expr::Variable(name) => {
-                match context.lookup(name).ok_or(RuntimeError::UndefVar(name))? {
-                    SymbolEntry::Type { def, kind } => todo!(),
-                    SymbolEntry::Func { def } => todo!(),
-                    SymbolEntry::Variable { def, is_def } => {
-                        if !*is_def {
-                            return Err(RuntimeError::UndefVar(name));
-                        }
-                        Ok(todo!())
-                    }
-                }
-            }
+            Expr::Variable(name) => Ok(context
+                .enviroment
+                .map
+                .get(name)
+                .ok_or(RuntimeError::Undeclared(*name))? // not in enviorment
+                .as_ref()
+                .ok_or(RuntimeError::Undefined(*name))? // varible in enviorment but not set
+                .clone()),
         }
     }
 }
