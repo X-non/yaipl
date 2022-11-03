@@ -51,6 +51,14 @@ impl From<f64> for RuntimeValue {
         Self::Float(v)
     }
 }
+impl From<bool> for RuntimeValue {
+    fn from(value: bool) -> Self {
+        match value {
+            true => Self::True,
+            false => Self::False,
+        }
+    }
+}
 
 impl RuntimeValue {
     fn assert_type(&self, ty: Type) -> Result<(), RuntimeError> {
@@ -200,8 +208,9 @@ impl Evaluatable for Expr {
 
     fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, RuntimeError> {
         match self {
-            &Expr::Integer(int) => Ok(int.try_into()?),
-            &Expr::Float(float) => Ok(float.into()),
+            Expr::Integer(int) => Ok((*int).try_into()?),
+            Expr::Float(float) => Ok((*float).into()),
+            Expr::Bool(v) => Ok((*v).into()),
             Expr::String(text) => todo!(),
             Expr::Variable(name) => Ok(context
                 .enviroment
