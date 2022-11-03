@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use crate::utils::interner::{branded::Ident, Interned};
+use crate::utils::interner::{
+    branded::{Ident, Identifier},
+    Interned,
+};
 
 use super::parser::ast::{Ast, FnDecl, Item, Module};
 pub struct AnnotatedAst {
@@ -17,9 +20,9 @@ impl AnnotatedAst {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DefPlace;
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Type {
     Bool,
     String,
@@ -27,7 +30,7 @@ pub enum Type {
     Int,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum SymbolEntry {
     Type { def: DefPlace, kind: Type },
     Variable { def: DefPlace, is_def: bool },
@@ -36,7 +39,7 @@ pub enum SymbolEntry {
 
 #[derive(Debug)]
 pub struct SymbolTable {
-    table: HashMap<Interned<Ident>, SymbolEntry>,
+    table: HashMap<Identifier, SymbolEntry>,
 }
 
 impl SymbolTable {
@@ -61,7 +64,7 @@ impl SymbolTable {
         }
     }
 
-    pub fn get(&self, ident: Interned<Ident>) -> Option<&SymbolEntry> {
+    pub fn get(&self, ident: Identifier) -> Option<&SymbolEntry> {
         self.table.get(&ident)
     }
 }
