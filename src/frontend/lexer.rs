@@ -32,6 +32,7 @@ pub enum TokenKind {
     True,
     #[token("false")]
     False,
+
     #[regex(r"[0-9]([0-9]|_)*", |lex| lex.slice().parse())]
     Integer(u64),
 
@@ -58,7 +59,8 @@ pub enum TokenKind {
     RightParen,
 
     #[error]
-    #[regex(r"[ \t\n\f\r]+", logos::skip)]
+    #[regex(r"[ \t\n\f\r]+", logos::skip)] //whitespace
+    #[regex(r"//.*", logos::skip)]
     Error,
 }
 
