@@ -4,5 +4,4 @@ fn main {
     let string = "Hello World";
     let boolean = true;
     let boolean = false;
-    sad
 }
