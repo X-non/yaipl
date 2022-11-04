@@ -4,7 +4,7 @@ use crate::utils::interner::{
     branded::{Ident, Identifier},
     Interner,
 };
-
+#[derive(Debug)]
 pub struct Ast {
     pub root: Module,
     pub interner: Interner<Ident>,

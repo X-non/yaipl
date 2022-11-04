@@ -12,7 +12,7 @@ pub type ParseResult<T> = Result<T, ParseError>;
 pub enum ParseError {
     UnexpectedEOF,
     UnexpectedToken(Range<usize>),
-    Expected(Box<dyn 'static + Debug>),
+    Expected(Box<dyn 'static + Debug + Send>),
     WholeProgramNotParsed(Box<Module>),
 }
 

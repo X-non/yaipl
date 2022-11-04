@@ -1,6 +1,7 @@
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
+    fmt::Debug,
     mem::MaybeUninit,
     slice::from_raw_parts,
     str,
@@ -36,6 +37,21 @@ pub struct Interner<Brand> {
     idents: RefCell<Vec<UnsafeValidStr>>,
     arena: StrArena,
 }
+
+impl<Brand: Debug + Default> std::fmt::Debug for Interner<Brand> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_map()
+            .entries(
+                self.idents
+                    .borrow()
+                    .iter()
+                    .enumerate()
+                    .map(|(i, s)| (Interned::<Brand>::new(i as u32), unsafe { s.get() })),
+            )
+            .finish()
+    }
+}
+unsafe impl Send for StrArena {}
 
 impl<Brand> Interner<Brand> {
     pub fn new() -> Self {
