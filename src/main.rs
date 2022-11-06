@@ -30,7 +30,7 @@ fn main() {
             println!("{:#?}", module);
             let ast = Ast::new(module, interner).annotate();
 
-            ast.ast.interner.debug_dump_strs();
+            println!("{:?}", ast.ast.interner);
 
             println!("{:#?}", evaluator::evaluate(ast));
 
