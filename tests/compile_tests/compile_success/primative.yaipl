@@ -2,6 +2,6 @@ fn main {
     let int = 10;
     let float = 10.0123123;
     let string = "Hello World";
-    let boolean = true;
-    let boolean = false;
+    let b1 = true;
+    let b2 = false;
 }
