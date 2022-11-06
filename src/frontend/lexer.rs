@@ -43,7 +43,7 @@ pub enum TokenKind {
     #[regex(r#""([^"\\]|\\[\s\S])*""#)]
     String,
 
-    #[regex(r"(_|[a-zA-Z])+(_|a-zA-Z0-9)*")]
+    #[regex(r"(_|[a-zA-Z])+(_|[a-z0-9])*")]
     Ident,
 
     #[token("{")]
@@ -91,7 +91,22 @@ impl<'a> Iterator for Lexer<'a> {
 
 #[cfg(test)]
 mod tests {
+    use super::{Lexer, TokenKind};
 
+    #[test]
+    fn valid_identifiers() {
+        let text = "abc a1b ab3 a2b3 __abc a_b a___";
+        let lexer = Lexer::new(text);
+        for token in lexer {
+            assert_eq!(
+                token.kind,
+                TokenKind::Ident,
+                "span: {:?}, lexeme: {}",
+                token.span.clone(),
+                &text[token.span]
+            );
+        }
+    }
     #[test]
     fn lexes_right_token() {
         use crate::frontend::lexer::{Lexer, TokenKind};
