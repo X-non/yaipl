@@ -1,9 +1,6 @@
 use std::collections::HashMap;
 
-use crate::utils::interner::{
-    branded::{Ident, Identifier},
-    Interned,
-};
+use crate::utils::interner::branded::Identifier;
 
 use super::parser::ast::{Ast, FnDecl, Item, Module};
 pub struct AnnotatedAst {
