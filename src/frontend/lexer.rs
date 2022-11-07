@@ -2,6 +2,11 @@ use std::ops::Range;
 
 use logos::Logos;
 
+use crate::utils::interner::{
+    branded::{Ident, Identifier, StrLiteral},
+    Interned, Interner,
+};
+
 pub struct Lexer<'a> {
     logos_lexer: logos::Lexer<'a, TokenKind>,
 }
@@ -13,6 +18,7 @@ pub struct Token {
 }
 
 #[derive(Logos, Debug, PartialEq)]
+#[logos(extras = (Interner<Ident>, Interner<StrLiteral>))]
 pub enum TokenKind {
     #[token("let")]
     Let,
@@ -40,11 +46,11 @@ pub enum TokenKind {
     Float(f64),
 
     //https://gist.github.com/cellularmitosis/6fd5fc2a65225364f72d3574abd9d5d5
-    #[regex(r#""([^"\\]|\\[\s\S])*""#)]
-    String,
+    #[regex(r#""([^"\\]|\\[\s\S])*""#, |lex| lex.extras.1.intern(lex.slice()))]
+    String(Interned<StrLiteral>),
 
-    #[regex(r"(_|[a-zA-Z])+(_|[a-z0-9])*")]
-    Ident,
+    #[regex(r"(_|[a-zA-Z])+(_|[a-z0-9])*", |lex| lex.extras.0.intern(lex.slice()))]
+    Ident(Identifier),
 
     #[token("{")]
     OpenBrace,
@@ -67,7 +73,7 @@ pub enum TokenKind {
 impl<'a> Lexer<'a> {
     pub fn new(src: &'a str) -> Self {
         Self {
-            logos_lexer: TokenKind::lexer(src),
+            logos_lexer: TokenKind::lexer_with_extras(src, (Interner::new(), Interner::new())),
         }
     }
 }
@@ -98,9 +104,8 @@ mod tests {
         let text = "abc a1b ab3 a2b3 __abc a_b a___";
         let lexer = Lexer::new(text);
         for token in lexer {
-            assert_eq!(
-                token.kind,
-                TokenKind::Ident,
+            assert!(
+                matches!(token.kind, TokenKind::Ident(_)),
                 "span: {:?}, lexeme: {}",
                 token.span.clone(),
                 &text[token.span]
@@ -112,16 +117,16 @@ mod tests {
         use crate::frontend::lexer::{Lexer, TokenKind};
         let mut lexer = Lexer::new("if bla {wee} else {wee}");
         assert_eq!(lexer.next().unwrap().kind, TokenKind::If);
-        assert_eq!(lexer.next().unwrap().kind, TokenKind::Ident);
+        assert!(matches!(lexer.next().unwrap().kind, TokenKind::Ident(_)));
 
         assert_eq!(lexer.next().unwrap().kind, TokenKind::OpenBrace);
-        assert_eq!(lexer.next().unwrap().kind, TokenKind::Ident);
+        assert!(matches!(lexer.next().unwrap().kind, TokenKind::Ident(_)));
         assert_eq!(lexer.next().unwrap().kind, TokenKind::ClosedBrace);
 
         assert_eq!(lexer.next().unwrap().kind, TokenKind::Else);
 
         assert_eq!(lexer.next().unwrap().kind, TokenKind::OpenBrace);
-        assert_eq!(lexer.next().unwrap().kind, TokenKind::Ident);
+        assert!(matches!(lexer.next().unwrap().kind, TokenKind::Ident(_)));
         assert_eq!(lexer.next().unwrap().kind, TokenKind::ClosedBrace);
         assert!(lexer.next().is_none());
     }
