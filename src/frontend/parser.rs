@@ -74,7 +74,7 @@ impl<'src, 'interner> Parser<'src, 'interner> {
         self.lexer.peek().is_none()
     }
     pub fn token_to_ident(&self, token: &Token) -> Interned<Ident> {
-        assert!(matches!(token.kind, TokenKind::Ident));
+        assert!(matches!(token.kind, TokenKind::Ident(_)));
         self.idents.intern(&self.src[token.span.clone()])
     }
     #[allow(dead_code)]
@@ -151,8 +151,8 @@ impl<'src, 'interner> Parser<'src, 'interner> {
         let expr = match token.kind {
             TokenKind::Integer(num) => Expr::Integer(num),
             TokenKind::Float(num) => Expr::Float(num),
-            TokenKind::Ident => Expr::Variable(self.token_to_ident(&token)),
-            TokenKind::String => Expr::String(token.span.clone()),
+            TokenKind::Ident(ident) => Expr::Variable(ident),
+            TokenKind::String(string) => Expr::String(string),
             TokenKind::True => Expr::Bool(true),
             TokenKind::False => Expr::Bool(false),
             _ => return Err(ParseError::UnexpectedToken(token.span.clone())),
@@ -201,7 +201,7 @@ impl<'src, 'interner> Parser<'src, 'interner> {
     }
 
     fn parse_varible_decl(&mut self) -> ParseResult<VaribleDecl> {
-        let name = self.eat_if(|tok| matches!(tok.kind, TokenKind::Ident))?;
+        let name = self.eat_if(|tok| matches!(tok.kind, TokenKind::Ident(_)))?;
 
         let name = name.ok_or(ParseError::UnexpectedToken(self.peek()?.span.clone()))?;
 
@@ -217,8 +217,8 @@ impl<'src, 'interner> Parser<'src, 'interner> {
 
     fn parse_fn_decl(&mut self) -> ParseResult<FnDecl> {
         let name = self
-            .eat_if(|token| token.kind == TokenKind::Ident)?
-            .ok_or(ParseError::Expected(Box::new(TokenKind::Ident)))?;
+            .eat_if(|token| matches!(token.kind, TokenKind::Ident(_)))?
+            .ok_or(ParseError::Expected(Box::new("Identifier")))?;
 
         let name = self.token_to_ident(&name);
         let block = self.parse_block(true)?;
