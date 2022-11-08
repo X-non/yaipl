@@ -1,6 +1,4 @@
-use std::{fmt::Debug, iter::Peekable, ops::Range};
-
-use crate::utils::interner::{branded::Ident, Interned, Interner};
+use std::{fmt::Debug, ops::Range};
 
 use self::ast::{Block, Expr, FnDecl, IfBranch, IfBranchSet, Item, Module, Stmt, VaribleDecl};
 
@@ -24,17 +22,15 @@ impl From<EOF> for ParseError {
 #[derive(Debug)]
 pub struct EOF;
 
-pub struct Parser<'src, 'interner> {
-    lexer: Peekable<Lexer<'src>>,
-    idents: &'interner Interner<Ident>,
+pub struct Parser<'src> {
+    lexer: Lexer<'src>,
     src: &'src str,
 }
 
-impl<'src, 'interner> Parser<'src, 'interner> {
-    pub fn new(src: &'src str, interner: &'interner Interner<Ident>) -> Self {
+impl<'src> Parser<'src> {
+    pub fn new(src: &'src str) -> Self {
         Self {
-            lexer: Lexer::new(src).peekable(),
-            idents: interner,
+            lexer: Lexer::new(src),
             src,
         }
     }
@@ -58,7 +54,7 @@ impl<'src, 'interner> Parser<'src, 'interner> {
         }
     }
     /// eats a token if f returns Some()
-    pub fn peek_map_eat_if<T, E, F>(&mut self, f: F) -> Result<Result<T, E>, EOF>
+    pub fn map_eat_if<T, E, F>(&mut self, f: F) -> Result<Result<T, E>, EOF>
     where
         F: FnOnce(&Token) -> Result<T, E>,
     {
@@ -72,10 +68,6 @@ impl<'src, 'interner> Parser<'src, 'interner> {
     }
     pub fn is_at_eof(&mut self) -> bool {
         self.lexer.peek().is_none()
-    }
-    pub fn token_to_ident(&self, token: &Token) -> Interned<Ident> {
-        assert!(matches!(token.kind, TokenKind::Ident(_)));
-        self.idents.intern(&self.src[token.span.clone()])
     }
     #[allow(dead_code)]
     pub fn parse_root_module(&mut self) -> ParseResult<Module> {
@@ -201,26 +193,25 @@ impl<'src, 'interner> Parser<'src, 'interner> {
     }
 
     fn parse_varible_decl(&mut self) -> ParseResult<VaribleDecl> {
-        let name = self.eat_if(|tok| matches!(tok.kind, TokenKind::Ident(_)))?;
-
-        let name = name.ok_or(ParseError::UnexpectedToken(self.peek()?.span.clone()))?;
+        let name = self.map_eat_if(|tok| match tok.kind {
+            TokenKind::Ident(ident) => Ok(ident),
+            _ => Err(ParseError::UnexpectedToken(tok.span.clone())),
+        })??;
 
         self.eat_if(|token| token.kind == TokenKind::Equal)?
             .ok_or(ParseError::Expected(Box::new(TokenKind::Equal)))?;
 
         let intializer = self.parse_expr()?;
-        Ok(VaribleDecl {
-            name: self.token_to_ident(&name),
-            intializer,
-        })
+        Ok(VaribleDecl { name, intializer })
     }
 
     fn parse_fn_decl(&mut self) -> ParseResult<FnDecl> {
-        let name = self
-            .eat_if(|token| matches!(token.kind, TokenKind::Ident(_)))?
-            .ok_or(ParseError::Expected(Box::new("Identifier")))?;
+        let name = self.map_eat_if(|token| match token.kind {
+            TokenKind::Ident(name) => Ok(name),
+            _ => Err(ParseError::Expected(Box::new("Identifier"))),
+        })??;
 
-        let name = self.token_to_ident(&name);
+        let name = name;
         let block = self.parse_block(true)?;
 
         Ok(FnDecl { name, block })

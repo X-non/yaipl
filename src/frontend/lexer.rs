@@ -9,6 +9,8 @@ use crate::utils::interner::{
 
 pub struct Lexer<'a> {
     logos_lexer: logos::Lexer<'a, TokenKind>,
+    peek: Option<Token>,
+    has_returned_eof: bool,
 }
 
 #[derive(Debug)]
@@ -64,6 +66,8 @@ pub enum TokenKind {
     #[token(")")]
     RightParen,
 
+    EOF,
+
     #[error]
     #[regex(r"[ \t\n\f\r]+", logos::skip)] //whitespace
     #[regex(r"//.*", logos::skip)]
@@ -73,8 +77,16 @@ pub enum TokenKind {
 impl<'a> Lexer<'a> {
     pub fn new(src: &'a str) -> Self {
         Self {
+            has_returned_eof: false,
+            peek: None,
             logos_lexer: TokenKind::lexer_with_extras(src, (Interner::new(), Interner::new())),
         }
+    }
+    pub fn peek(&mut self) -> Option<&Token> {
+        if self.peek.is_none() {
+            self.peek = self.next();
+        }
+        self.peek.as_ref()
     }
 }
 
@@ -82,16 +94,24 @@ impl<'a> Iterator for Lexer<'a> {
     type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let token = if let Some(kind) = self.logos_lexer.next() {
-            Token {
+        if let Some(a) = self.peek.take() {
+            return Some(a);
+        }
+
+        if let Some(kind) = self.logos_lexer.next() {
+            Some(Token {
                 kind,
                 span: self.logos_lexer.span(),
-            }
+            })
+        } else if !self.has_returned_eof {
+            self.has_returned_eof = true;
+            Some(Token {
+                kind: TokenKind::EOF,
+                span: self.logos_lexer.span(),
+            })
         } else {
-            return None;
-        };
-
-        Some(token)
+            None
+        }
     }
 }
 
