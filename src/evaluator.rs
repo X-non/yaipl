@@ -1,5 +1,8 @@
 mod evaluatable;
-use std::collections::{hash_map::Entry, HashMap};
+use std::{
+    borrow::Cow,
+    collections::{hash_map::Entry, HashMap},
+};
 
 pub use self::evaluatable::Evaluatable;
 
@@ -9,7 +12,7 @@ use crate::{
         semantic_analysis::{AnnotatedAst, SymbolEntry, SymbolTable, Type},
     },
     utils::interner::{
-        branded::{Ident, Identifier},
+        branded::{Ident, Identifier, StrLiteral},
         Interned, Interner,
     },
 };
@@ -26,11 +29,12 @@ pub enum RuntimeError {
     Shadowed(Interned<Ident>),
     Undeclared(Interned<Ident>),
 }
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum RuntimeValue {
     True,
     False,
-    String,
+    String(String),
     Float(f64),
     Int(i64),
 }
@@ -74,7 +78,7 @@ impl RuntimeValue {
     const fn ty(&self) -> Type {
         match self {
             RuntimeValue::True | RuntimeValue::False => Type::Bool,
-            RuntimeValue::String => Type::String,
+            RuntimeValue::String(_) => Type::String,
             RuntimeValue::Float(_) => Type::Float,
             RuntimeValue::Int(_) => Type::Int,
         }
@@ -94,6 +98,7 @@ impl Enviroment {
 pub struct Interpreter {
     root: Module,
     idents: Interner<Ident>,
+    strings: Interner<StrLiteral>,
     symbol_table: SymbolTable,
     enviroment: Enviroment,
 }
@@ -105,6 +110,7 @@ impl Interpreter {
             idents: ast.ast.interner,
             symbol_table: ast.table,
             enviroment: Enviroment::new(),
+            strings: todo!(),
         }
     }
 
@@ -197,10 +203,6 @@ impl Evaluatable for IfBranch {
         }
         Ok(())
     }
-
-    type Error = RuntimeError;
-
-    type Value = ();
 }
 
 impl Evaluatable for Expr {
@@ -208,17 +210,19 @@ impl Evaluatable for Expr {
 
     fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, RuntimeError> {
         match self {
-            Expr::Integer(int) => Ok((*int).try_into()?),
-            Expr::Float(float) => Ok((*float).into()),
-            Expr::Bool(v) => Ok((*v).into()),
-            Expr::String(text) => todo!(),
-            Expr::Variable(name) => Ok(context
+            &Expr::Integer(int) => Ok(int.try_into()?),
+            &Expr::Float(float) => Ok(float.into()),
+            &Expr::Bool(v) => Ok(v.into()),
+            &Expr::String(text) => Ok(RuntimeValue::String(
+                context.strings.lookup(text).to_string(),
+            )),
+            &Expr::Variable(name) => Ok(context
                 .enviroment
                 .map
-                .get(name)
-                .ok_or(RuntimeError::Undeclared(*name))? // not in enviorment
+                .get(&name)
+                .ok_or(RuntimeError::Undeclared(name))? // not in enviorment
                 .as_ref()
-                .ok_or(RuntimeError::Undefined(*name))? // varible in enviorment but not set
+                .ok_or(RuntimeError::Undefined(name))? // varible in enviorment but not set
                 .clone()),
         }
     }
