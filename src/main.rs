@@ -24,9 +24,9 @@ fn main() {
             }
         }
         "#;
-    let parser = Parser::new(text);
+    let mut parser = Parser::new(text);
     let parse_root_module = parser.parse_root_module();
-    let interner = parser.into_interners();
+    let (interner, _) = parser.into_interners();
     match parse_root_module {
         Ok(module) => {
             println!("{:#?}", module);

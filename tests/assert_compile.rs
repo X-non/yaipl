@@ -14,10 +14,10 @@ use yaipl::{
     utils::interner::Interner,
 };
 fn compile(src: &str) -> Result<Ast, ParseError> {
-    let interner = Interner::new();
-    Parser::new(src, &interner)
-        .parse_root_module()
-        .map(|root| Ast::new(root, interner))
+    let mut parser = Parser::new(src);
+    let root = parser.parse_root_module()?;
+    let (idents, _) = parser.into_interners();
+    Ok(Ast::new(root, idents))
 }
 
 fn test_folder(subfolder: &Path) -> io::Result<impl ParallelIterator<Item = io::Result<DirEntry>>> {
