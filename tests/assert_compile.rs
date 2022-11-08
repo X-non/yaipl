@@ -1,18 +1,12 @@
-use rayon::{iter::IterBridge, prelude::*};
+use rayon::prelude::*;
 use std::{
-    fs::{self, DirEntry, File, ReadDir},
+    fs::{self, DirEntry, File},
     io::{self, Read},
-    path::{self, Path, PathBuf},
+    path::{Path, PathBuf},
     str::FromStr,
 };
 
-use yaipl::{
-    frontend::{
-        parser::{ast::Ast, ParseError, Parser},
-        semantic_analysis::AnnotatedAst,
-    },
-    utils::interner::Interner,
-};
+use yaipl::frontend::parser::{ast::Ast, ParseError, Parser};
 fn compile(src: &str) -> Result<Ast, ParseError> {
     let mut parser = Parser::new(src);
     let root = parser.parse_root_module()?;
