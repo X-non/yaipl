@@ -88,6 +88,10 @@ impl<'a> Lexer<'a> {
         }
         self.peek.as_ref()
     }
+
+    pub(crate) fn into_interners(self) -> (Interner<Ident>, Interner<StrLiteral>) {
+        self.logos_lexer.extras
+    }
 }
 
 impl<'a> Iterator for Lexer<'a> {

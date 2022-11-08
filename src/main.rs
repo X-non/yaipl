@@ -24,8 +24,10 @@ fn main() {
             }
         }
         "#;
-    let interner = Interner::new();
-    match Parser::new(text, &interner).parse_root_module() {
+    let parser = Parser::new(text);
+    let parse_root_module = parser.parse_root_module();
+    let interner = parser.into_interners();
+    match parse_root_module {
         Ok(module) => {
             println!("{:#?}", module);
             let ast = Ast::new(module, interner).annotate();

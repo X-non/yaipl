@@ -1,5 +1,10 @@
 use std::{fmt::Debug, ops::Range};
 
+use crate::utils::interner::{
+    branded::{Ident, StrLiteral},
+    Interner,
+};
+
 use self::ast::{Block, Expr, FnDecl, IfBranch, IfBranchSet, Item, Module, Stmt, VaribleDecl};
 
 use super::lexer::{Lexer, Token, TokenKind};
@@ -34,11 +39,13 @@ impl<'src> Parser<'src> {
             src,
         }
     }
+    pub fn into_interners(self) -> (Interner<Identnt>, Interner<StrLiteral>) {
+        self.lexer.into_interners()
+    }
 
     pub fn peek(&mut self) -> Result<&Token, EOF> {
         self.lexer.peek().ok_or(EOF)
     }
-
     pub fn eat(&mut self) -> Result<Token, EOF> {
         dbg!(self.lexer.next().ok_or(EOF))
     }
