@@ -39,7 +39,7 @@ impl<'src> Parser<'src> {
             src,
         }
     }
-    pub fn into_interners(self) -> (Interner<Identnt>, Interner<StrLiteral>) {
+    pub fn into_interners(self) -> (Interner<Ident>, Interner<StrLiteral>) {
         self.lexer.into_interners()
     }
 
