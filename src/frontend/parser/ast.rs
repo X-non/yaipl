@@ -1,8 +1,8 @@
 use std::ops::Range;
 
 use crate::utils::interner::{
-    branded::{Ident, Identifier},
-    Interner,
+    branded::{Ident, Identifier, StrLiteral},
+    Interned, Interner,
 };
 #[derive(Debug)]
 pub struct Ast {
@@ -26,7 +26,7 @@ pub enum Expr {
     Integer(u64),
     Float(f64),
     Bool(bool),
-    String(Range<usize>),
+    String(Interned<StrLiteral>),
     Variable(Identifier),
 }
 
