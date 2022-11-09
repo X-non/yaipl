@@ -2,6 +2,7 @@ use rayon::prelude::*;
 use std::{
     fs::{self, DirEntry, File},
     io::{self, Read},
+    ops::Range,
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -12,6 +13,12 @@ fn compile(src: &str) -> Result<Ast, ParseError> {
     let root = parser.parse_root_module()?;
     let (idents, _) = parser.into_interners();
     Ok(Ast::new(root, idents))
+}
+fn rows_contained(src: &str, range: Range<usize>) -> (&str, Range<usize>) {
+    let start = src[..range.start].rfind('\n').unwrap_or(0);
+    let end = src[range.end..].find('\n').unwrap_or(src.len());
+
+    (&src[start..end].trim(), start..end)
 }
 
 fn test_folder(subfolder: &Path) -> io::Result<impl ParallelIterator<Item = io::Result<DirEntry>>> {
@@ -27,7 +34,7 @@ fn test_folder(subfolder: &Path) -> io::Result<impl ParallelIterator<Item = io::
     })
 }
 
-fn compile_all_in(subfolder: &Path) -> Vec<(PathBuf, Result<Ast, ParseError>)> {
+fn compile_all_in(subfolder: &Path) -> Vec<(PathBuf, Result<Ast, ParseError>, String)> {
     let files = test_folder(subfolder).unwrap().map(|a| {
         let file_path = a.unwrap().path();
         (file_path.clone(), File::open(file_path))
@@ -40,7 +47,7 @@ fn compile_all_in(subfolder: &Path) -> Vec<(PathBuf, Result<Ast, ParseError>)> {
                 .unwrap();
             (path, string)
         })
-        .map(|(name, a)| (name, compile(&a)));
+        .map(|(name, a)| (name, compile(&a), a));
 
     compiled.collect()
 }
@@ -48,15 +55,29 @@ fn compile_all_in(subfolder: &Path) -> Vec<(PathBuf, Result<Ast, ParseError>)> {
 fn assert_compile_success() {
     let files = compile_all_in(Path::new("compile_success"));
 
-    for (name, result) in files {
-        assert!(result.is_ok(), "file: {:?}, value: {:#?}", name, result);
+    for (name, result, src) in files {
+        match result {
+            Err(err) => {
+                let extra_info = match &err {
+                    ParseError::UnexpectedToken(range) => Some(rows_contained(&src, range.clone())),
+                    _ => None,
+                };
+                if let Some((text, range)) = extra_info {
+                    eprintln!("{}", range.start);
+                    eprintln!("{}", text);
+                    eprintln!("{}", range.end)
+                }
+                panic!("file: {name:?}, err: {err:#?}");
+            }
+            Ok(_) => {}
+        }
     }
 }
 #[test]
 fn assert_compile_faliure() {
     let files = compile_all_in(Path::new("compile_failure"));
 
-    for (name, result) in files {
+    for (name, result, _) in files {
         assert!(result.is_err(), "file: {:?}, value: {:#?}", name, result);
     }
 }
