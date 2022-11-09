@@ -74,7 +74,7 @@ impl<'src> Parser<'src> {
         result
     }
     pub fn is_at_eof(&mut self) -> bool {
-        self.lexer.peek().is_none()
+        self.peek().is_eof()
     }
 
     #[allow(dead_code)]

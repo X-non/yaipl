@@ -19,6 +19,12 @@ pub struct Token {
     pub span: Range<usize>,
 }
 
+impl Token {
+    pub fn is_eof(&self) -> bool {
+        self.kind.is_eof()
+    }
+}
+
 #[derive(Logos, Debug, PartialEq)]
 #[logos(extras = (Interner<Ident>, Interner<StrLiteral>))]
 pub enum TokenKind {
@@ -74,6 +80,16 @@ pub enum TokenKind {
     Error,
 }
 
+impl TokenKind {
+    /// Returns `true` if the token kind is [`EOF`].
+    ///
+    /// [`EOF`]: TokenKind::EOF
+    #[must_use]
+    pub fn is_eof(&self) -> bool {
+        matches!(self, Self::EOF)
+    }
+}
+
 impl<'a> Lexer<'a> {
     pub fn new(src: &'a str) -> Self {
         Self {
@@ -126,8 +142,9 @@ mod tests {
     #[test]
     fn valid_identifiers() {
         let text = "abc a1b ab3 a2b3 __abc a_b a___";
-        let lexer = Lexer::new(text);
-        for token in lexer {
+        let mut lexer = Lexer::new(text);
+        for _ in 0..7 {
+            let token = lexer.next().unwrap();
             assert!(
                 matches!(token.kind, TokenKind::Ident(_)),
                 "span: {:?}, lexeme: {}",
@@ -135,6 +152,8 @@ mod tests {
                 &text[token.span]
             );
         }
+        assert_eq!(lexer.next().unwrap().kind, TokenKind::EOF);
+        assert!(lexer.next().is_none());
     }
     #[test]
     fn lexes_right_token() {
@@ -152,6 +171,8 @@ mod tests {
         assert_eq!(lexer.next().unwrap().kind, TokenKind::OpenBrace);
         assert!(matches!(lexer.next().unwrap().kind, TokenKind::Ident(_)));
         assert_eq!(lexer.next().unwrap().kind, TokenKind::ClosedBrace);
+        assert_eq!(lexer.next().unwrap().kind, TokenKind::EOF);
+
         assert!(lexer.next().is_none());
     }
 }
