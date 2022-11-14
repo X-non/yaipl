@@ -1,4 +1,5 @@
 use yaipl::evaluator;
+use yaipl::utils::diagnostics::resolve_span_from_src;
 use yaipl::utils::interner::Interner;
 use yaipl::{self, frontend::parser::ast::Ast};
 
@@ -18,7 +19,7 @@ fn main() {
             if condition {
                 // let a = "hello";
             } else if false {
-                
+                let a = 213; 
             } else{
                 
             }
@@ -40,7 +41,11 @@ fn main() {
         }
         Err(err) => match err {
             parser::ParseError::UnexpectedToken(r) => {
-                eprintln!("Error: {:?} @ {:?}", &text[r.clone()], r)
+                eprintln!(
+                    "Error: {:?} @ {:?}",
+                    &text[r.into_src_range()],
+                    resolve_span_from_src(text, r)
+                )
             }
             rest => eprintln!("{rest:?}"),
         },

@@ -7,6 +7,8 @@ use crate::utils::interner::{
     Interned, Interner,
 };
 
+use super::span::Span;
+
 pub struct Lexer<'a> {
     logos_lexer: logos::Lexer<'a, TokenKind>,
     peek: Option<Token>,
@@ -16,7 +18,7 @@ pub struct Lexer<'a> {
 #[derive(Debug)]
 pub struct Token {
     pub kind: TokenKind,
-    pub span: Range<usize>,
+    pub span: Span,
 }
 
 impl Token {
@@ -118,25 +120,26 @@ impl<'a> Iterator for Lexer<'a> {
             return Some(a);
         }
 
-        if let Some(kind) = self.logos_lexer.next() {
-            Some(Token {
-                kind,
-                span: self.logos_lexer.span(),
-            })
+        let kind = if let Some(kind) = self.logos_lexer.next() {
+            kind
         } else if !self.has_returned_eof {
             self.has_returned_eof = true;
-            Some(Token {
-                kind: TokenKind::EOF,
-                span: self.logos_lexer.span(),
-            })
+            TokenKind::EOF
         } else {
-            None
-        }
+            return None;
+        };
+
+        Some(Token {
+            kind,
+            span: Span::try_from(self.logos_lexer.span()).unwrap(),
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::utils::diagnostics::resolve_span_from_src;
+
     use super::{Lexer, TokenKind};
 
     #[test]
@@ -148,8 +151,8 @@ mod tests {
             assert!(
                 matches!(token.kind, TokenKind::Ident(_)),
                 "span: {:?}, lexeme: {}",
-                token.span.clone(),
-                &text[token.span]
+                resolve_span_from_src(text, token.span),
+                &text[token.span.into_src_range()]
             );
         }
         assert_eq!(lexer.next().unwrap().kind, TokenKind::EOF);

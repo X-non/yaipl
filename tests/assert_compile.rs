@@ -59,7 +59,9 @@ fn assert_compile_success() {
         match result {
             Err(err) => {
                 let extra_info = match &err {
-                    ParseError::UnexpectedToken(range) => Some(rows_contained(&src, range.clone())),
+                    ParseError::UnexpectedToken(range) => {
+                        Some(rows_contained(&src, range.into_src_range()))
+                    }
                     _ => None,
                 };
                 if let Some((text, range)) = extra_info {

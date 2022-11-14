@@ -7,14 +7,17 @@ use crate::utils::interner::{
 
 use self::ast::{Block, Expr, FnDecl, IfBranch, IfBranchSet, Item, Module, Stmt, VaribleDecl};
 
-use super::lexer::{Lexer, Token, TokenKind};
+use super::{
+    lexer::{Lexer, Token, TokenKind},
+    span::Span,
+};
 pub mod ast;
 
 pub type ParseResult<T> = Result<T, ParseError>;
 #[derive(Debug)]
 pub enum ParseError {
     UnexpectedEOF,
-    UnexpectedToken(Range<usize>),
+    UnexpectedToken(Span),
     Expected(Box<dyn 'static + Debug + Send>),
     WholeProgramNotParsed(Box<Module>),
 }
@@ -203,7 +206,7 @@ impl<'src> Parser<'src> {
     fn parse_varible_decl(&mut self) -> ParseResult<VaribleDecl> {
         let name = self.map_eat_if(|tok| match tok.kind {
             TokenKind::Ident(ident) => Ok(ident),
-            _ => Err(ParseError::UnexpectedToken(tok.span.clone())),
+            _ => Err(ParseError::UnexpectedToken(tok.span)),
         })?;
 
         self.eat_if(|token| token.kind == TokenKind::Equal)
