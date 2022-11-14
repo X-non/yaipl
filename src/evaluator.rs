@@ -1,8 +1,5 @@
 mod evaluatable;
-use std::{
-    borrow::Cow,
-    collections::{hash_map::Entry, HashMap},
-};
+use std::collections::{hash_map::Entry, HashMap};
 
 pub use self::evaluatable::Evaluatable;
 
@@ -110,7 +107,7 @@ impl Interpreter {
             idents: ast.ast.interner,
             symbol_table: ast.table,
             enviroment: Enviroment::new(),
-            strings: todo!(),
+            strings: Interner::new(),
         }
     }
 
@@ -224,6 +221,7 @@ impl Evaluatable for Expr {
                 .as_ref()
                 .ok_or(RuntimeError::Undefined(name))? // varible in enviorment but not set
                 .clone()),
+            Expr::FnCall(_) => todo!(),
         }
     }
 }
