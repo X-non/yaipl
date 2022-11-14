@@ -9,7 +9,7 @@ edition = "2021"
 clap = { version = "4.0.18", features = ["derive"] }
 logos = "0.12.1"
 bitfield-struct = "0.1.7"
-tinyvec = {version = "1.6.0", features = ["alloc", "std", "rustc_1_57", ]}
+smallvec = {version ="1.10.0", features =["const_generics","arbitrary"]}
 
 [dev-dependencies]
 rayon = "1.5.3"
