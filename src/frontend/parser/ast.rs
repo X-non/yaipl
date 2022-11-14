@@ -5,7 +5,7 @@ use crate::utils::{
         branded::{Ident, Identifier, StrLiteral},
         Interned, Interner,
     },
-    smallvec::TinyVec,
+    smallvec::SmallVec,
 };
 #[derive(Debug)]
 pub struct Ast {
