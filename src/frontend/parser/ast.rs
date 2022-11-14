@@ -1,8 +1,11 @@
 use std::ops::Range;
 
-use crate::utils::interner::{
-    branded::{Ident, Identifier, StrLiteral},
-    Interned, Interner,
+use crate::utils::{
+    interner::{
+        branded::{Ident, Identifier, StrLiteral},
+        Interned, Interner,
+    },
+    smallvec::TinyVec,
 };
 #[derive(Debug)]
 pub struct Ast {
@@ -22,11 +25,17 @@ pub struct Module {
 }
 
 #[derive(Debug, Clone)]
+pub struct FnCall {
+    pub callee: Expr,
+    pub arguments: SmallVec<Expr, 5>,
+}
+#[derive(Debug, Clone)]
 pub enum Expr {
     Integer(u64),
     Float(f64),
     Bool(bool),
     String(Interned<StrLiteral>),
+    FnCall(Box<FnCall>),
     Variable(Identifier),
 }
 
