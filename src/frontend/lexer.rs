@@ -41,7 +41,8 @@ pub enum TokenKind {
     Else,
     #[token(";")]
     SemiColon,
-
+    #[token(",")]
+    Comma,
     #[token("fn")]
     Func,
     #[token("true")]
