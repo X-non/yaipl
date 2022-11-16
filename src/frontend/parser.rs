@@ -5,7 +5,10 @@ use crate::utils::interner::{
     Interner,
 };
 
-use self::ast::{Block, Expr, FnDecl, IfBranch, IfBranchSet, Item, Module, Stmt, VaribleDecl};
+use self::ast::{
+    Block, Expr, FnArguments, FnCall, FnDecl, IfBranch, IfBranchSet, Item, Module, Stmt,
+    VaribleDecl,
+};
 
 use super::{
     lexer::{Lexer, Token, TokenKind},
@@ -150,18 +153,30 @@ impl<'src> Parser<'src> {
     }
 
     fn parse_expr(&mut self) -> ParseResult<Expr> {
-        let token = self.eat();
-        let expr = match token.kind {
-            TokenKind::Integer(num) => Expr::Integer(num),
-            TokenKind::Float(num) => Expr::Float(num),
-            TokenKind::Ident(ident) => Expr::Variable(ident),
-            TokenKind::String(string) => Expr::String(string),
-            TokenKind::True => Expr::Bool(true),
-            TokenKind::False => Expr::Bool(false),
-            _ => return Err(ParseError::UnexpectedToken(token.span.clone())),
-        };
+        let mut expr = self.parse_primary()?;
+        while self
+            .eat_if(|token| token.kind == TokenKind::LeftParen)
+            .is_some()
+        {
+            let arguments = self.parse_argument_list()?;
+            expr = Expr::FnCall(Box::new(FnCall {
+                arguments,
+                callee: expr,
+            }));
+        }
 
         Ok(expr)
+    }
+    fn parse_primary(&mut self) -> ParseResult<Expr> {
+        self.map_eat_if(|token| match token.kind {
+            TokenKind::Integer(num) => Ok(Expr::Integer(num)),
+            TokenKind::Float(num) => Ok(Expr::Float(num)),
+            TokenKind::String(string) => Ok(Expr::String(string)),
+            TokenKind::Ident(ident) => Ok(Expr::Variable(ident)),
+            TokenKind::True => Ok(Expr::Bool(true)),
+            TokenKind::False => Ok(Expr::Bool(false)),
+            _ => return Err(ParseError::UnexpectedToken(token.span)),
+        })
     }
     fn parse_stmt(&mut self) -> ParseResult<Stmt> {
         let token = self.eat();
@@ -226,5 +241,18 @@ impl<'src> Parser<'src> {
         let block = self.parse_block(true)?;
 
         Ok(FnDecl { name, block })
+    }
+
+    fn parse_argument_list(&mut self) -> ParseResult<FnArguments> {
+        loop {
+            let token = self.eat();
+            match token.kind {
+                TokenKind::RightParen => break,
+                TokenKind::EOF => return Err(ParseError::UnexpectedEOF),
+                _ => continue,
+            }
+        }
+
+        Ok(FnArguments::empty())
     }
 }
