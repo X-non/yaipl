@@ -25,9 +25,24 @@ pub struct Module {
 }
 
 #[derive(Debug, Clone)]
+pub struct FnArguments {
+    pub arguments: SmallVec<Expr, 5>,
+}
+
+impl FnArguments {
+    pub fn new(arguments: SmallVec<Expr, 5>) -> Self {
+        Self { arguments }
+    }
+    pub fn empty() -> Self {
+        Self {
+            arguments: Default::default(),
+        }
+    }
+}
+#[derive(Debug, Clone)]
 pub struct FnCall {
     pub callee: Expr,
-    pub arguments: SmallVec<Expr, 5>,
+    pub arguments: FnArguments,
 }
 #[derive(Debug, Clone)]
 pub enum Expr {
