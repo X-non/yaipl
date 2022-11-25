@@ -25,6 +25,7 @@ pub enum RuntimeError {
     Overflow,
     Shadowed(Interned<Ident>),
     Undeclared(Interned<Ident>),
+    CantCall(Expr),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -104,10 +105,10 @@ impl Interpreter {
     fn new(ast: AnnotatedAst) -> Self {
         Self {
             root: ast.ast.root,
-            idents: ast.ast.interner,
+            idents: ast.ast.identifiers,
             symbol_table: ast.table,
             enviroment: Enviroment::new(),
-            strings: Interner::new(),
+            strings: ast.ast.strings,
         }
     }
 
@@ -221,7 +222,21 @@ impl Evaluatable for Expr {
                 .as_ref()
                 .ok_or(RuntimeError::Undefined(name))? // varible in enviorment but not set
                 .clone()),
-            Expr::FnCall(_) => todo!(),
+            Expr::FnCall(call) => {
+                //TODO FIX print hack;
+                if let Expr::Variable(ident) = call.callee {
+                    let callee_name = context.idents.lookup(ident);
+                    if callee_name == "print" {
+                        let formated: Result<Vec<_>, _> = call
+                            .arguments
+                            .arguments
+                            .iter()
+                            .map(|e| e.evaluate(context).map(|expr| format!("{:?}", expr)))
+                            .collect();
+                    }
+                }
+                return Err(RuntimeError::CantCall(call.callee.clone()));
+            }
         }
     }
 }

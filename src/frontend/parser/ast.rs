@@ -7,15 +7,26 @@ use crate::utils::{
     },
     smallvec::SmallVec,
 };
+pub struct NodeId(u32);
+
+impl NodeId {
+    pub const DUMMY: Self = NodeId(u32::MAX);
+}
+
 #[derive(Debug)]
 pub struct Ast {
     pub root: Module,
-    pub interner: Interner<Ident>,
+    pub identifiers: Interner<Ident>,
+    pub strings: Interner<StrLiteral>,
 }
 
 impl Ast {
-    pub fn new(root: Module, interner: Interner<Ident>) -> Self {
-        Self { root, interner }
+    pub fn new(root: Module, identifiers: Interner<Ident>, strings: Interner<StrLiteral>) -> Self {
+        Self {
+            root,
+            identifiers,
+            strings,
+        }
     }
 }
 
