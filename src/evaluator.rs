@@ -1,3 +1,4 @@
+mod builtin;
 mod evaluatable;
 use std::collections::{hash_map::Entry, HashMap};
 
@@ -5,7 +6,7 @@ pub use self::evaluatable::Evaluatable;
 
 use crate::{
     frontend::{
-        parser::ast::{Block, Expr, IfBranch, IfBranchSet, Module, Stmt},
+        parser::ast::{Block, Expr, FnCall, IfBranch, IfBranchSet, Module, Stmt},
         semantic_analysis::{AnnotatedAst, SymbolEntry, SymbolTable, Type},
     },
     utils::interner::{
@@ -30,11 +31,18 @@ pub enum RuntimeError {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RuntimeValue {
+    Unit,
     True,
     False,
     String(String),
     Float(f64),
     Int(i64),
+}
+
+impl From<()> for RuntimeValue {
+    fn from(_: ()) -> Self {
+        Self::Unit
+    }
 }
 
 impl TryFrom<u64> for RuntimeValue {
@@ -79,6 +87,7 @@ impl RuntimeValue {
             RuntimeValue::String(_) => Type::String,
             RuntimeValue::Float(_) => Type::Float,
             RuntimeValue::Int(_) => Type::Int,
+            RuntimeValue::Unit => Type::Unit,
         }
     }
 }
@@ -222,21 +231,23 @@ impl Evaluatable for Expr {
                 .as_ref()
                 .ok_or(RuntimeError::Undefined(name))? // varible in enviorment but not set
                 .clone()),
-            Expr::FnCall(call) => {
-                //TODO FIX print hack;
-                if let Expr::Variable(ident) = call.callee {
-                    let callee_name = context.idents.lookup(ident);
-                    if callee_name == "print" {
-                        let formated: Result<Vec<_>, _> = call
-                            .arguments
-                            .arguments
-                            .iter()
-                            .map(|e| e.evaluate(context).map(|expr| format!("{:?}", expr)))
-                            .collect();
-                    }
-                }
-                return Err(RuntimeError::CantCall(call.callee.clone()));
+            Expr::FnCall(call) => call.evaluate(context),
+        }
+    }
+}
+impl Evaluatable for FnCall {
+    type Value = RuntimeValue;
+
+    fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, Self::Error> {
+        //TODO FIX print hack;
+        if let Expr::Variable(ident) = self.callee {
+            let callee_name = context.idents.lookup(ident);
+            if callee_name == "print" {
+                return builtin::print(&self.arguments, context).map(Into::into);
+            } else {
+                todo!("function lookup and call");
             }
         }
+        return Err(RuntimeError::CantCall(self.callee.clone()));
     }
 }

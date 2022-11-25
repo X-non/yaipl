@@ -25,6 +25,7 @@ pub enum Type {
     String,
     Float,
     Int,
+    Unit,
 }
 
 #[derive(Debug, Clone)]

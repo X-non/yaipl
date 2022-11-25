@@ -17,7 +17,7 @@ fn main() {
         fn main {
             let condition = true;
             if condition {
-                let a = "hello";
+                let a = print(condition);
             } else if false {
                 let a = 213; 
             } else{
@@ -43,7 +43,7 @@ fn main() {
         Err(err) => match err {
             parser::ParseError::UnexpectedToken(r) => {
                 eprintln!(
-                    "Error: {:?} @ {:?}",
+                    "UnexpectedToken: {:?} @ {:?}",
                     &text[r.into_src_range()],
                     resolve_span_from_src(text, r)
                 )
