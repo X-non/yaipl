@@ -1,6 +1,6 @@
-use std::ops::Range;
-
 use logos::Logos;
+use std::fmt::Write;
+use std::{ops::Range, sync::Mutex};
 
 use crate::utils::interner::{
     branded::{Ident, Identifier, StrLiteral},
@@ -27,6 +27,57 @@ impl Token {
     }
 }
 
+struct InvalidEscapeSequence(usize, char);
+
+fn handel_str_literal(
+    lex: &mut logos::Lexer<TokenKind>,
+) -> Result<Interned<StrLiteral>, InvalidEscapeSequence> {
+    static BUFFER: Mutex<String> = Mutex::new(String::new());
+    let mut buffer = BUFFER.lock().unwrap();
+
+    let raw_literal = &lex.slice()[..(lex.slice().len() - 1)][1..];
+    let mut chars = raw_literal.char_indices();
+    let mut start_of_unwritten = Some(0);
+
+    loop {
+        let underscore = match chars.next() {
+            Some((index, '\\')) => index,
+            Some((index, _)) => {
+                if start_of_unwritten.is_none() {
+                    start_of_unwritten = Some(index);
+                }
+                continue;
+            }
+            None => break,
+        };
+
+        let replace_char = match chars.next() {
+            Some((_, 'n')) => '\n',
+            Some((_, 'r')) => '\r',
+            Some((_, '\\')) => '\\',
+            invalid => return Err(invalid.map(|(i, c)| InvalidEscapeSequence(i, c)).unwrap()),
+        };
+
+        write!(
+            buffer,
+            "{}{}",
+            &raw_literal[start_of_unwritten.unwrap()..underscore],
+            replace_char
+        )
+        .unwrap();
+        start_of_unwritten = None;
+    }
+
+    let string = match start_of_unwritten {
+        Some(0) => raw_literal,
+        _ => &buffer,
+    };
+
+    let interned = lex.extras.1.intern(string);
+
+    buffer.clear();
+    Ok(interned)
+}
 #[derive(Logos, Debug, PartialEq)]
 #[logos(extras = (Interner<Ident>, Interner<StrLiteral>))]
 pub enum TokenKind {
@@ -57,7 +108,7 @@ pub enum TokenKind {
     Float(f64),
 
     //https://gist.github.com/cellularmitosis/6fd5fc2a65225364f72d3574abd9d5d5
-    #[regex(r#""([^"\\]|\\[\s\S])*""#, |lex| lex.extras.1.intern(lex.slice()))]
+    #[regex(r#""([^"\\]|\\[\s\S])*""#, handel_str_literal)]
     String(Interned<StrLiteral>),
 
     #[regex(r"(_|[a-zA-Z])+(_|[a-z0-9])*", |lex| lex.extras.0.intern(lex.slice()))]

@@ -11,8 +11,8 @@ use yaipl::frontend::parser::{ast::Ast, ParseError, Parser};
 fn compile(src: &str) -> Result<Ast, ParseError> {
     let mut parser = Parser::new(src);
     let root = parser.parse_root_module()?;
-    let (idents, _) = parser.into_interners();
-    Ok(Ast::new(root, idents))
+    let (idents, strings) = parser.into_interners();
+    Ok(Ast::new(root, idents, strings))
 }
 fn rows_contained(src: &str, range: Range<usize>) -> (&str, Range<usize>) {
     let start = src[..range.start].rfind('\n').unwrap_or(0);
