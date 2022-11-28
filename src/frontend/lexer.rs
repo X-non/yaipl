@@ -1,6 +1,6 @@
+use std::borrow::Cow;
+
 use logos::Logos;
-use std::fmt::Write;
-use std::{ops::Range, sync::Mutex};
 
 use crate::utils::interner::{
     branded::{Ident, Identifier, StrLiteral},
@@ -28,55 +28,53 @@ impl Token {
 }
 
 struct InvalidEscapeSequence(usize, char);
-
+fn split_first_char(s: &str) -> Option<(char, &str)> {
+    let mut chars = s.chars();
+    chars.next().map(|c| (c, chars.as_str()))
+}
 fn handel_str_literal(
-    lex: &mut logos::Lexer<TokenKind>,
+    lexer: &mut logos::Lexer<TokenKind>,
 ) -> Result<Interned<StrLiteral>, InvalidEscapeSequence> {
-    static BUFFER: Mutex<String> = Mutex::new(String::new());
-    let mut buffer = BUFFER.lock().unwrap();
+    let content = lexer
+        .slice()
+        .strip_prefix('"')
+        .expect("string literals start with \"")
+        .strip_suffix('"')
+        .expect("string literals end with \"");
 
-    let raw_literal = &lex.slice()[..(lex.slice().len() - 1)][1..];
-    let mut chars = raw_literal.char_indices();
-    let mut start_of_unwritten = Some(0);
+    let escaped = unescape_special_chars(content)?;
 
-    loop {
-        let underscore = match chars.next() {
-            Some((index, '\\')) => index,
-            Some((index, _)) => {
-                if start_of_unwritten.is_none() {
-                    start_of_unwritten = Some(index);
-                }
-                continue;
-            }
-            None => break,
-        };
+    let interned = lexer.extras.1.intern(&escaped);
 
-        let replace_char = match chars.next() {
-            Some((_, 'n')) => '\n',
-            Some((_, 'r')) => '\r',
-            Some((_, '\\')) => '\\',
-            invalid => return Err(invalid.map(|(i, c)| InvalidEscapeSequence(i, c)).unwrap()),
-        };
-
-        write!(
-            buffer,
-            "{}{}",
-            &raw_literal[start_of_unwritten.unwrap()..underscore],
-            replace_char
-        )
-        .unwrap();
-        start_of_unwritten = None;
-    }
-
-    let string = match start_of_unwritten {
-        Some(0) => raw_literal,
-        _ => &buffer,
-    };
-
-    let interned = lex.extras.1.intern(string);
-
-    buffer.clear();
     Ok(interned)
+}
+
+fn unescape_special_chars(content: &str) -> Result<Cow<'_, str>, InvalidEscapeSequence> {
+    let mut escaped = String::new();
+    let mut unchecked = content;
+
+    while let Some(index) = unchecked.find("\\") {
+        let (before_escape, with_backslash) = unchecked.split_at(index);
+        let with_escape_seq = with_backslash.strip_prefix("\\").unwrap();
+        let (first, rest) = split_first_char(with_escape_seq)
+            .expect("cant have a \\ alone before string end due to the string lexing");
+        let replacement = match first {
+            'n' => '\n',
+            'r' => '\r',
+            invalid => return Err(InvalidEscapeSequence(index, invalid)),
+        };
+
+        escaped.push_str(before_escape);
+        escaped.push(replacement);
+        unchecked = rest;
+    }
+    //prevents extera alloc if the content contains no escape codes
+    if escaped.is_empty() {
+        Ok(Cow::Borrowed(content))
+    } else {
+        escaped.push_str(unchecked);
+        Ok(Cow::Owned(escaped))
+    }
 }
 #[derive(Logos, Debug, PartialEq)]
 #[logos(extras = (Interner<Ident>, Interner<StrLiteral>))]
