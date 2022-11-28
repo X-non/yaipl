@@ -1,8 +1,11 @@
 use std::{fmt::Debug, ops::Range};
 
-use crate::utils::interner::{
-    branded::{Ident, StrLiteral},
-    Interner,
+use crate::utils::{
+    interner::{
+        branded::{Ident, StrLiteral},
+        Interner,
+    },
+    smallvec::SmallVec,
 };
 
 use self::ast::{
@@ -23,6 +26,7 @@ pub enum ParseError {
     UnexpectedToken(Span),
     Expected(Box<dyn 'static + Debug + Send>),
     WholeProgramNotParsed(Box<Module>),
+    FnArgOnlyComma,
 }
 
 impl From<EOF> for ParseError {
@@ -244,15 +248,33 @@ impl<'src> Parser<'src> {
     }
 
     fn parse_argument_list(&mut self) -> ParseResult<FnArguments> {
+        //exists to disallow <callee>(,);
+        let mut consumed_comma = false;
+        let mut argument_values = SmallVec::new();
+
         loop {
-            let token = self.eat();
-            match token.kind {
-                TokenKind::RightParen => break,
-                TokenKind::EOF => return Err(ParseError::UnexpectedEOF),
-                _ => continue,
+            if self
+                .eat_if(|token| token.kind == TokenKind::RightParen)
+                .is_some()
+            {
+                break;
+            }
+
+            argument_values.push(self.parse_expr()?);
+            consumed_comma = self
+                .eat_if(|token| token.kind == TokenKind::Comma)
+                .is_some();
+
+            if self
+                .eat_if(|token| token.kind == TokenKind::RightParen)
+                .is_some()
+            {
+                break;
             }
         }
-
-        Ok(FnArguments::empty())
+        if consumed_comma && argument_values.len() == 0 {
+            return Err(ParseError::FnArgOnlyComma);
+        }
+        Ok(FnArguments::new(argument_values))
     }
 }
