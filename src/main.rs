@@ -18,6 +18,7 @@ fn main() {
             let condition = true;
             if condition {
                 let a = print(condition);
+                let v = print("hello");
             } else if false {
                 let a = 213; 
             } else{
