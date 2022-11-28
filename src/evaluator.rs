@@ -1,6 +1,9 @@
 mod builtin;
 mod evaluatable;
-use std::collections::{hash_map::Entry, HashMap};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    fmt::Display,
+};
 
 pub use self::evaluatable::Evaluatable;
 
@@ -37,6 +40,19 @@ pub enum RuntimeValue {
     String(String),
     Float(f64),
     Int(i64),
+}
+
+impl Display for RuntimeValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RuntimeValue::Unit => write!(f, "Unit"),
+            RuntimeValue::True => write!(f, "true"),
+            RuntimeValue::False => write!(f, "false"),
+            RuntimeValue::String(text) => write!(f, "{}", text),
+            RuntimeValue::Float(val) => write!(f, "{}", val),
+            RuntimeValue::Int(val) => write!(f, "{}", val),
+        }
+    }
 }
 
 impl From<()> for RuntimeValue {
