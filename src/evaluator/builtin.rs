@@ -9,6 +9,8 @@ pub fn print(arguments: &FnArguments, context: &mut Interpreter) -> Result<(), R
         .map(|e| e.evaluate(context).map(|value| format!("{}", value)))
         .collect();
     let formated = formated?.join(" ");
-    println!("{}", formated);
+
+    (writeln!(context.io_adaptor, "{}", formated)).unwrap();
+    context.io_adaptor.flush().unwrap();
     Ok(())
 }
