@@ -1,11 +1,13 @@
 mod builtin;
 mod evaluatable;
+mod io_adaptor;
 use std::{
     collections::{hash_map::Entry, HashMap},
     fmt::Display,
 };
 
 pub use self::evaluatable::Evaluatable;
+use self::io_adaptor::{IoAdaptor, StdIOAdaptor};
 
 use crate::{
     frontend::{
@@ -122,18 +124,23 @@ pub struct Interpreter {
     root: Module,
     idents: Interner<Ident>,
     strings: Interner<StrLiteral>,
+    io_adaptor: Box<dyn IoAdaptor>,
     symbol_table: SymbolTable,
     enviroment: Enviroment,
 }
 
 impl Interpreter {
     fn new(ast: AnnotatedAst) -> Self {
+        Self::with_io_adaptor(ast, Box::new(StdIOAdaptor::new()))
+    }
+    fn with_io_adaptor(ast: AnnotatedAst, io_adaptor: Box<dyn IoAdaptor>) -> Self {
         Self {
             root: ast.ast.root,
             idents: ast.ast.identifiers,
             symbol_table: ast.table,
             enviroment: Enviroment::new(),
             strings: ast.ast.strings,
+            io_adaptor,
         }
     }
 
