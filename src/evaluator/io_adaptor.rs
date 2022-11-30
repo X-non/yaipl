@@ -1,7 +1,6 @@
 use std::{
     collections::VecDeque,
-    io::{self, IoSlice, Read, Stderr, Stdin, Stdout, Write},
-    str::from_utf8,
+    io::{self, Read, Stderr, Stdin, Stdout, Write},
 };
 
 struct ChunkWriter(Vec<Box<[u8]>>);

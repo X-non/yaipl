@@ -1,4 +1,4 @@
-use std::{fmt::Debug, ops::Range};
+use std::fmt::Debug;
 
 use crate::utils::{
     interner::{
