@@ -205,6 +205,9 @@ impl Evaluatable for Stmt {
                 let initalizer = decl.intializer.evaluate(context)?;
                 context.def_set(decl.name, initalizer)?;
             }
+            Stmt::Expr(expr) => {
+                expr.evaluate(context)?;
+            }
         }
         Ok(())
     }

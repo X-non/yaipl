@@ -109,13 +109,14 @@ pub enum Stmt {
     If(IfBranchSet),
     Block(Block),
     VaribleDecl(VaribleDecl),
+    Expr(Expr),
 }
 
 impl Stmt {
-    pub(crate) fn needed_semi_colon(&self) -> bool {
+    pub(crate) fn needs_semi_colon(&self) -> bool {
         match self {
-            Stmt::VaribleDecl(_) => true,
-            _ => false,
+            Stmt::If(_) | Stmt::Block(_) => false,
+            _ => true,
         }
     }
 }

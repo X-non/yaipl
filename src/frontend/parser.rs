@@ -183,18 +183,23 @@ impl<'src> Parser<'src> {
         })
     }
     fn parse_stmt(&mut self) -> ParseResult<Stmt> {
-        let token = self.eat();
-
-        let stmt = match token.kind {
-            TokenKind::If => Stmt::If(self.parse_if()?),
-            TokenKind::Let => Stmt::VaribleDecl(self.parse_varible_decl()?),
-            TokenKind::OpenBrace => Stmt::Block(self.parse_block(false)?),
-            _ => return Err(ParseError::UnexpectedToken(token.span)),
+        let stmt;
+        if self.eat_if(|token| token.kind == TokenKind::If).is_some() {
+            stmt = Stmt::If(self.parse_if()?)
+        } else if self.eat_if(|token| token.kind == TokenKind::Let).is_some() {
+            stmt = Stmt::VaribleDecl(self.parse_varible_decl()?)
+        } else if self
+            .eat_if(|token| token.kind == TokenKind::OpenBrace)
+            .is_some()
+        {
+            stmt = Stmt::Block(self.parse_block(false)?)
+        } else {
+            stmt = Stmt::Expr(self.parse_expr()?);
         };
 
         let semi_colon = self.eat_if(|tok| tok.kind == TokenKind::SemiColon);
 
-        if semi_colon.is_none() && stmt.needed_semi_colon() {
+        if semi_colon.is_none() && stmt.needs_semi_colon() {
             return Err(ParseError::Expected(Box::new(TokenKind::SemiColon)));
         }
 
