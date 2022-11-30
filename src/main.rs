@@ -15,15 +15,13 @@ fn main() {
     // file.read_to_string(&mut text).unwrap();
     let text = r#"
         fn main {
-            let condition = true;
+            let condition = false;
             if condition {
-                let a = print(condition);
-                let v = print("hello");
-            } else if false {
-                let a = 213; 
-            } else{
-                
-            }
+                print(condition);
+                print("hello");     
+            } else {
+                print(condition, "hej hej");
+            } 
         }
         "#;
     let mut parser = Parser::new(text);
