@@ -1,4 +1,4 @@
-use std::ops::Range;
+use std::{ops::Range, rc::Rc};
 
 use crate::utils::{
     interner::{
@@ -16,16 +16,16 @@ impl NodeId {
 #[derive(Debug)]
 pub struct Ast {
     pub root: Module,
-    pub identifiers: Interner<Ident>,
-    pub strings: Interner<StrLiteral>,
+    pub identifiers: Rc<Interner<Ident>>,
+    pub strings: Rc<Interner<StrLiteral>>,
 }
 
 impl Ast {
     pub fn new(root: Module, identifiers: Interner<Ident>, strings: Interner<StrLiteral>) -> Self {
         Self {
             root,
-            identifiers,
-            strings,
+            identifiers: Rc::new(identifiers),
+            strings: Rc::new(strings),
         }
     }
 }

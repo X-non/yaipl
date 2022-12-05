@@ -4,6 +4,7 @@ mod io_adaptor;
 use std::{
     collections::{hash_map::Entry, HashMap},
     fmt::Display,
+    rc::Rc,
 };
 
 pub use self::evaluatable::Evaluatable;
@@ -122,8 +123,8 @@ impl Enviroment {
 #[allow(dead_code)]
 pub struct Interpreter {
     root: Module,
-    idents: Interner<Ident>,
-    strings: Interner<StrLiteral>,
+    idents: Rc<Interner<Ident>>,
+    strings: Rc<Interner<StrLiteral>>,
     io_adaptor: Box<dyn IoAdaptor>,
     symbol_table: SymbolTable,
     enviroment: Enviroment,
