@@ -92,6 +92,19 @@ pub enum TokenKind {
     SemiColon,
     #[token(",")]
     Comma,
+
+    #[token(".")]
+    Dot,
+
+    #[token("+")]
+    Plus,
+    #[token("-")]
+    Minus,
+    #[token("*")]
+    Star,
+    #[token("/")]
+    Slash,
+
     #[token("fn")]
     Func,
     #[token("true")]
