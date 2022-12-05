@@ -30,9 +30,9 @@ fn main() {
     println!("{:#?}", strings);
     match parse_root_module {
         Ok(module) => {
-            println!("{:#?}", module);
-            let ast = Ast::new(module, idents, strings).annotate();
-
+            let ast = Ast::new(module, idents, strings);
+            println!("{}", ast);
+            let ast = ast.annotate();
             println!("{:?}", ast.ast.identifiers);
 
             println!("{:#?}", evaluator::evaluate(ast));
