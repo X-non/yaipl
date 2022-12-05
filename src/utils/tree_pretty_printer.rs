@@ -130,7 +130,7 @@ impl TreePrintable for Stmt {
                 if let Some(else_block) = else_block.as_ref() {
                     printer.emit_labled("Else", |printer| else_block.print(printer));
                 } else {
-                    printer.emit("/* No Else Branch*/");
+                    printer.emit("/* No Else Branch */");
                 }
             }
 
