@@ -47,6 +47,8 @@ fn compile_all_in(subfolder: &Path) -> Vec<(PathBuf, Result<Ast, ParseError>, St
                 .unwrap();
             (path, string)
         })
+        .collect::<Vec<_>>()
+        .into_iter()
         .map(|(name, a)| (name, compile(&a), a));
 
     compiled.collect()
