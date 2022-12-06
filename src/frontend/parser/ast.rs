@@ -1,11 +1,14 @@
 use std::{ops::Range, rc::Rc};
 
-use crate::utils::{
-    interner::{
-        branded::{Ident, Identifier, StrLiteral},
-        Interned, Interner,
+use crate::{
+    frontend::lexer::TokenKind,
+    utils::{
+        interner::{
+            branded::{Ident, Identifier, StrLiteral},
+            Interned, Interner,
+        },
+        smallvec::SmallVec,
     },
-    smallvec::SmallVec,
 };
 pub struct NodeId(u32);
 
@@ -60,9 +63,51 @@ pub enum Expr {
     Integer(u64),
     Float(f64),
     Bool(bool),
+    Binary(Binary),
     String(Interned<StrLiteral>),
     FnCall(Box<FnCall>),
     Variable(Identifier),
+    UnaryMinus(Box<Expr>),
+}
+#[derive(Debug, Clone)]
+pub struct Binary {
+    pub op: BinaryOp,
+    pub lhs: Box<Expr>,
+    pub rhs: Box<Expr>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum BinaryOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+}
+
+impl std::fmt::Display for BinaryOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BinaryOp::Add => write!(f, "+"),
+            BinaryOp::Sub => write!(f, "-"),
+            BinaryOp::Mul => write!(f, "*"),
+            BinaryOp::Div => write!(f, "/"),
+        }
+    }
+}
+
+impl TryFrom<TokenKind> for BinaryOp {
+    type Error = ();
+
+    fn try_from(value: TokenKind) -> Result<Self, Self::Error> {
+        let op = match value {
+            TokenKind::Plus => Self::Add,
+            TokenKind::Minus => Self::Sub,
+            TokenKind::Star => Self::Mul,
+            TokenKind::Slash => Self::Div,
+            _ => return Err(()),
+        };
+        Ok(op)
+    }
 }
 
 #[derive(Debug, Clone)]

@@ -16,9 +16,10 @@ fn main() {
     let text = r#"
         fn main {
             let condition = false;
+            let a = 5 * 1 + 2 / 2;  
             if condition {
                 print(condition);
-                print("hello");     
+                print("hello");
             } else {
                 print(condition, "hej hej");
             } 
@@ -33,7 +34,8 @@ fn main() {
             let ast = Ast::new(module, idents, strings);
             println!("{}", ast);
             let ast = ast.annotate();
-            println!("{:?}", ast.ast.identifiers);
+            println!("{:#?}", ast.ast.identifiers);
+            println!("{:#?}", ast.ast.strings);
 
             println!("{:#?}", evaluator::evaluate(ast));
 

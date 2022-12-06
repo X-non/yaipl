@@ -103,6 +103,15 @@ impl TreePrintable for Expr {
                     printer.emit_labled(format!("Arg #{i}"), |printer| expr.print(printer));
                 }
             }
+            Expr::Binary(binary) => {
+                printer.emit("BinaryExpr ");
+                printer.emit_indented(|printer| {
+                    binary.lhs.print(printer);
+                    printer.emit(format!("{}", binary.op));
+                    binary.rhs.print(printer);
+                })
+            }
+            Expr::UnaryMinus(_) => todo!(),
         }
     }
 }
