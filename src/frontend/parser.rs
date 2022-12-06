@@ -18,6 +18,7 @@ use super::{
     span::Span,
 };
 pub mod ast;
+mod binary_parsing;
 
 pub type ParseResult<T> = Result<T, ParseError>;
 #[derive(Debug)]
@@ -157,6 +158,10 @@ impl<'src> Parser<'src> {
     }
 
     fn parse_expr(&mut self) -> ParseResult<Expr> {
+        self.parse_term()
+    }
+
+    fn parse_call_expr(&mut self) -> ParseResult<Expr> {
         let mut expr = self.parse_primary()?;
         while self
             .eat_if(|token| token.kind == TokenKind::LeftParen)
@@ -168,7 +173,6 @@ impl<'src> Parser<'src> {
                 callee: expr,
             }));
         }
-
         Ok(expr)
     }
     fn parse_primary(&mut self) -> ParseResult<Expr> {
