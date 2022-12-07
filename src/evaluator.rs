@@ -12,7 +12,9 @@ use self::io_adaptor::{IoAdaptor, StdIOAdaptor};
 
 use crate::{
     frontend::{
-        parser::ast::{BinaryOp, Block, ExprKind, FnCall, IfBranch, IfBranchSet, Module, StmtKind},
+        parser::ast::{
+            BinaryOp, Block, Expr, ExprKind, FnCall, IfBranch, IfBranchSet, Module, Stmt, StmtKind,
+        },
         semantic_analysis::{AnnotatedAst, SymbolEntry, SymbolTable, Type},
     },
     utils::interner::{
@@ -33,7 +35,7 @@ pub enum RuntimeError {
     Overflow,
     Shadowed(Interned<Ident>),
     Undeclared(Interned<Ident>),
-    CantCall(ExprKind),
+    CantCall(Expr),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -197,9 +199,9 @@ impl Evaluatable for Block {
         Ok(())
     }
 }
-impl Evaluatable for StmtKind {
+impl Evaluatable for Stmt {
     fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, RuntimeError> {
-        match self {
+        match self.kind {
             StmtKind::If(set) => set.evaluate(context)?,
             StmtKind::Block(block) => block.evaluate(context)?,
             StmtKind::VaribleDecl(decl) => {
@@ -240,18 +242,18 @@ impl Evaluatable for IfBranch {
     }
 }
 
-impl Evaluatable for ExprKind {
+impl Evaluatable for Expr {
     type Value = RuntimeValue;
 
     fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, RuntimeError> {
-        match self {
-            &ExprKind::Integer(int) => Ok(int.try_into()?),
-            &ExprKind::Float(float) => Ok(float.into()),
-            &ExprKind::Bool(v) => Ok(v.into()),
-            &ExprKind::String(text) => Ok(RuntimeValue::String(
+        match self.kind {
+            ExprKind::Integer(int) => Ok(int.try_into()?),
+            ExprKind::Float(float) => Ok(float.into()),
+            ExprKind::Bool(v) => Ok(v.into()),
+            ExprKind::String(text) => Ok(RuntimeValue::String(
                 context.strings.lookup(text).to_string(),
             )),
-            &ExprKind::Variable(name) => Ok(context
+            ExprKind::Variable(name) => Ok(context
                 .enviroment
                 .map
                 .get(&name)
@@ -337,8 +339,8 @@ impl Evaluatable for FnCall {
     type Value = RuntimeValue;
 
     fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, Self::Error> {
-        //TODO FIX print hack;
-        if let ExprKind::Variable(ident) = self.callee {
+        //FIXME print hack;
+        if let ExprKind::Variable(ident) = self.callee.kind {
             let callee_name = context.idents.lookup(ident);
             if callee_name == "print" {
                 return builtin::print(&self.arguments, context).map(Into::into);
