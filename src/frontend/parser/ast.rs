@@ -35,18 +35,18 @@ impl Ast {
 
 #[derive(Debug)]
 pub struct Module {
-    pub items: Vec<ItemKind>,
+    pub items: Vec<Item>,
 }
 
 #[derive(Debug, Clone)]
 pub struct FnArguments {
     pub span: Span,
-    pub arguments: SmallVec<ExprKind, 5>,
+    pub arguments: SmallVec<Expr, 5>,
 }
 
 #[derive(Debug, Clone)]
 pub struct FnCall {
-    pub callee: ExprKind,
+    pub callee: Expr,
     pub arguments: FnArguments,
 }
 
@@ -71,8 +71,8 @@ pub enum ExprKind {
 pub struct Binary {
     pub op_span: Span,
     pub op: BinaryOp,
-    pub lhs: Box<ExprKind>,
-    pub rhs: Box<ExprKind>,
+    pub lhs: Box<Expr>,
+    pub rhs: Box<Expr>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -111,16 +111,17 @@ impl TryFrom<TokenKind> for BinaryOp {
 
 #[derive(Debug, Clone)]
 pub struct IfBranch {
-    pub condition: ExprKind,
+    pub condition: Expr,
     pub block: Block,
 }
 #[derive(Debug, Clone)]
 pub struct Block {
-    pub stmts: Vec<StmtKind>,
+    pub span: Span,
+    pub stmts: Vec<Stmt>,
 }
 
 impl Block {
-    pub fn stmts(&self) -> &[StmtKind] {
+    pub fn stmts(&self) -> &[Stmt] {
         self.stmts.as_ref()
     }
 }
@@ -153,10 +154,10 @@ pub struct FnDecl {
 pub struct VaribleDecl {
     pub name_span: Span,
     pub name: Identifier,
-    pub intializer: ExprKind,
+    pub intializer: Expr,
 }
 #[derive(Debug, Clone)]
-struct Stmt {
+pub struct Stmt {
     pub span: Span,
     pub kind: StmtKind,
 }
