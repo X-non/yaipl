@@ -12,7 +12,7 @@ use self::io_adaptor::{IoAdaptor, StdIOAdaptor};
 
 use crate::{
     frontend::{
-        parser::ast::{BinaryOp, Block, Expr, FnCall, IfBranch, IfBranchSet, Module, Stmt},
+        parser::ast::{BinaryOp, Block, ExprKind, FnCall, IfBranch, IfBranchSet, Module, StmtKind},
         semantic_analysis::{AnnotatedAst, SymbolEntry, SymbolTable, Type},
     },
     utils::interner::{
@@ -33,7 +33,7 @@ pub enum RuntimeError {
     Overflow,
     Shadowed(Interned<Ident>),
     Undeclared(Interned<Ident>),
-    CantCall(Expr),
+    CantCall(ExprKind),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -197,17 +197,17 @@ impl Evaluatable for Block {
         Ok(())
     }
 }
-impl Evaluatable for Stmt {
+impl Evaluatable for StmtKind {
     fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, RuntimeError> {
         match self {
-            Stmt::If(set) => set.evaluate(context)?,
-            Stmt::Block(block) => block.evaluate(context)?,
-            Stmt::VaribleDecl(decl) => {
+            StmtKind::If(set) => set.evaluate(context)?,
+            StmtKind::Block(block) => block.evaluate(context)?,
+            StmtKind::VaribleDecl(decl) => {
                 eprintln!("{decl:?}");
                 let initalizer = decl.intializer.evaluate(context)?;
                 context.def_set(decl.name, initalizer)?;
             }
-            Stmt::Expr(expr) => {
+            StmtKind::Expr(expr) => {
                 expr.evaluate(context)?;
             }
         }
@@ -240,18 +240,18 @@ impl Evaluatable for IfBranch {
     }
 }
 
-impl Evaluatable for Expr {
+impl Evaluatable for ExprKind {
     type Value = RuntimeValue;
 
     fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, RuntimeError> {
         match self {
-            &Expr::Integer(int) => Ok(int.try_into()?),
-            &Expr::Float(float) => Ok(float.into()),
-            &Expr::Bool(v) => Ok(v.into()),
-            &Expr::String(text) => Ok(RuntimeValue::String(
+            &ExprKind::Integer(int) => Ok(int.try_into()?),
+            &ExprKind::Float(float) => Ok(float.into()),
+            &ExprKind::Bool(v) => Ok(v.into()),
+            &ExprKind::String(text) => Ok(RuntimeValue::String(
                 context.strings.lookup(text).to_string(),
             )),
-            &Expr::Variable(name) => Ok(context
+            &ExprKind::Variable(name) => Ok(context
                 .enviroment
                 .map
                 .get(&name)
@@ -259,8 +259,8 @@ impl Evaluatable for Expr {
                 .as_ref()
                 .ok_or(RuntimeError::Undefined(name))? // varible in enviorment but not set
                 .clone()),
-            Expr::FnCall(call) => call.evaluate(context),
-            Expr::Binary(binary) => {
+            ExprKind::FnCall(call) => call.evaluate(context),
+            ExprKind::Binary(binary) => {
                 let lhs = (&*binary.lhs).evaluate(context)?;
                 let rhs = (&*binary.rhs).evaluate(context)?;
                 let result = match binary.op {
@@ -329,7 +329,7 @@ impl Evaluatable for Expr {
                 };
                 Ok(result)
             }
-            Expr::UnaryMinus(_) => todo!(),
+            ExprKind::UnaryMinus(_) => todo!(),
         }
     }
 }
@@ -338,7 +338,7 @@ impl Evaluatable for FnCall {
 
     fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, Self::Error> {
         //TODO FIX print hack;
-        if let Expr::Variable(ident) = self.callee {
+        if let ExprKind::Variable(ident) = self.callee {
             let callee_name = context.idents.lookup(ident);
             if callee_name == "print" {
                 return builtin::print(&self.arguments, context).map(Into::into);

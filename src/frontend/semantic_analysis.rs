@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::utils::interner::branded::Identifier;
 
-use super::parser::ast::{Ast, FnDecl, Item, Module};
+use super::parser::ast::{Ast, FnDecl, ItemKind, Module};
 pub struct AnnotatedAst {
     pub ast: Ast,
     pub table: SymbolTable,
@@ -53,9 +53,9 @@ impl SymbolTable {
         }
     }
 
-    fn regester_item(&mut self, item: &Item) {
+    fn regester_item(&mut self, item: &ItemKind) {
         match item {
-            Item::FnDecl(decl @ FnDecl { name, .. }) => {
+            ItemKind::FnDecl(decl @ FnDecl { name, .. }) => {
                 let decl = SymbolEntry::Func { def: decl.clone() };
                 self.table.insert(*name, decl);
             }

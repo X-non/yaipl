@@ -7,7 +7,7 @@ use std::{
 };
 
 use crate::frontend::parser::ast::{
-    Ast, Block, Expr, FnDecl, IfBranch, IfBranchSet, Item, Module, Stmt, VaribleDecl,
+    Ast, Block, ExprKind, FnDecl, IfBranch, IfBranchSet, ItemKind, Module, StmtKind, VaribleDecl,
 };
 use std::fmt::Write;
 
@@ -82,19 +82,19 @@ impl<T: TreePrintable> TreePrintable for &T {
     }
 }
 
-impl TreePrintable for Expr {
+impl TreePrintable for ExprKind {
     fn print(&self, printer: &mut TreePrinter) {
         match self {
-            Expr::Integer(val) => printer.emit(format!("Literal int `{val}`")),
-            Expr::Float(val) => printer.emit(format!("Literal float `{val}`")),
-            Expr::Bool(val) => printer.emit(format!("Literal bool `{val}`")),
-            Expr::String(val) => {
+            ExprKind::Integer(val) => printer.emit(format!("Literal int `{val}`")),
+            ExprKind::Float(val) => printer.emit(format!("Literal float `{val}`")),
+            ExprKind::Bool(val) => printer.emit(format!("Literal bool `{val}`")),
+            ExprKind::String(val) => {
                 printer.emit(format!("Literal string `{:?}`", printer.resolve_str(*val)))
             }
-            Expr::Variable(val) => {
+            ExprKind::Variable(val) => {
                 printer.emit(format!("Identifier `{}`", printer.resovle_ident(*val)))
             }
-            Expr::FnCall(fn_call) => {
+            ExprKind::FnCall(fn_call) => {
                 printer.emit(format!("FnCall"));
 
                 printer.emit_labled("Callee", |printer| fn_call.callee.print(printer));
@@ -103,7 +103,7 @@ impl TreePrintable for Expr {
                     printer.emit_labled(format!("Arg #{i}"), |printer| expr.print(printer));
                 }
             }
-            Expr::Binary(binary) => {
+            ExprKind::Binary(binary) => {
                 printer.emit("BinaryExpr ");
                 printer.emit_indented(|printer| {
                     binary.lhs.print(printer);
@@ -111,7 +111,7 @@ impl TreePrintable for Expr {
                     binary.rhs.print(printer);
                 })
             }
-            Expr::UnaryMinus(content) => {
+            ExprKind::UnaryMinus(content) => {
                 printer.emit_labled("UnaryMinus", |printer| {
                     content.print(printer);
                 });
@@ -120,10 +120,10 @@ impl TreePrintable for Expr {
     }
 }
 
-impl TreePrintable for Stmt {
+impl TreePrintable for StmtKind {
     fn print(&self, printer: &mut TreePrinter) {
         match self {
-            Stmt::If(IfBranchSet {
+            StmtKind::If(IfBranchSet {
                 if_branch,
                 else_if_branches,
                 else_block,
@@ -147,9 +147,9 @@ impl TreePrintable for Stmt {
                 }
             }
 
-            Stmt::Block(block) => block.print(printer),
-            Stmt::VaribleDecl(var_decl) => var_decl.print(printer),
-            Stmt::Expr(expr) => printer.emit_labled("ExprStmt", |printer| expr.print(printer)),
+            StmtKind::Block(block) => block.print(printer),
+            StmtKind::VaribleDecl(var_decl) => var_decl.print(printer),
+            StmtKind::Expr(expr) => printer.emit_labled("ExprStmt", |printer| expr.print(printer)),
         }
     }
 }
@@ -181,10 +181,10 @@ impl TreePrintable for Module {
     }
 }
 
-impl TreePrintable for Item {
+impl TreePrintable for ItemKind {
     fn print(&self, printer: &mut TreePrinter) {
         match self {
-            Item::FnDecl(fn_decl) => fn_decl.print(printer),
+            ItemKind::FnDecl(fn_decl) => fn_decl.print(printer),
         }
     }
 }

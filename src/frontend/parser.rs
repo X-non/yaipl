@@ -9,8 +9,8 @@ use crate::utils::{
 };
 
 use self::ast::{
-    Block, Expr, FnArguments, FnCall, FnDecl, IfBranch, IfBranchSet, Item, Module, Stmt,
-    VaribleDecl,
+    Block, ExprKind, FnArguments, FnCall, FnDecl, IfBranch, IfBranchSet, ItemKind, Module,
+    StmtKind, VaribleDecl,
 };
 
 use super::{
@@ -107,13 +107,13 @@ impl<'src> Parser<'src> {
         Ok(Module { items })
     }
 
-    fn parse_item(&mut self) -> ParseResult<Item> {
+    fn parse_item(&mut self) -> ParseResult<ItemKind> {
         let start_of_item = self.eat();
 
         let item = match start_of_item.kind {
             TokenKind::Func => {
                 let fn_decl = self.parse_fn_decl()?;
-                Item::FnDecl(fn_decl)
+                ItemKind::FnDecl(fn_decl)
             }
             _ => return Err(ParseError::UnexpectedToken(start_of_item.span)),
         };
@@ -157,48 +157,48 @@ impl<'src> Parser<'src> {
         Ok(IfBranch { condition, block })
     }
 
-    fn parse_expr(&mut self) -> ParseResult<Expr> {
+    fn parse_expr(&mut self) -> ParseResult<ExprKind> {
         self.parse_term()
     }
 
-    fn parse_call_expr(&mut self) -> ParseResult<Expr> {
+    fn parse_call_expr(&mut self) -> ParseResult<ExprKind> {
         let mut expr = self.parse_primary()?;
         while self
             .eat_if(|token| token.kind == TokenKind::LeftParen)
             .is_some()
         {
             let arguments = self.parse_argument_list()?;
-            expr = Expr::FnCall(Box::new(FnCall {
+            expr = ExprKind::FnCall(Box::new(FnCall {
                 arguments,
                 callee: expr,
             }));
         }
         Ok(expr)
     }
-    fn parse_primary(&mut self) -> ParseResult<Expr> {
+    fn parse_primary(&mut self) -> ParseResult<ExprKind> {
         self.map_eat_if(|token| match token.kind {
-            TokenKind::Integer(num) => Ok(Expr::Integer(num)),
-            TokenKind::Float(num) => Ok(Expr::Float(num)),
-            TokenKind::String(string) => Ok(Expr::String(string)),
-            TokenKind::Ident(ident) => Ok(Expr::Variable(ident)),
-            TokenKind::True => Ok(Expr::Bool(true)),
-            TokenKind::False => Ok(Expr::Bool(false)),
+            TokenKind::Integer(num) => Ok(ExprKind::Integer(num)),
+            TokenKind::Float(num) => Ok(ExprKind::Float(num)),
+            TokenKind::String(string) => Ok(ExprKind::String(string)),
+            TokenKind::Ident(ident) => Ok(ExprKind::Variable(ident)),
+            TokenKind::True => Ok(ExprKind::Bool(true)),
+            TokenKind::False => Ok(ExprKind::Bool(false)),
             _ => return Err(ParseError::UnexpectedToken(token.span)),
         })
     }
-    fn parse_stmt(&mut self) -> ParseResult<Stmt> {
+    fn parse_stmt(&mut self) -> ParseResult<StmtKind> {
         let stmt;
         if self.eat_if(|token| token.kind == TokenKind::If).is_some() {
-            stmt = Stmt::If(self.parse_if()?)
+            stmt = StmtKind::If(self.parse_if()?)
         } else if self.eat_if(|token| token.kind == TokenKind::Let).is_some() {
-            stmt = Stmt::VaribleDecl(self.parse_varible_decl()?)
+            stmt = StmtKind::VaribleDecl(self.parse_varible_decl()?)
         } else if self
             .eat_if(|token| token.kind == TokenKind::OpenBrace)
             .is_some()
         {
-            stmt = Stmt::Block(self.parse_block(false)?)
+            stmt = StmtKind::Block(self.parse_block(false)?)
         } else {
-            stmt = Stmt::Expr(self.parse_expr()?);
+            stmt = StmtKind::Expr(self.parse_expr()?);
         };
 
         let semi_colon = self.eat_if(|tok| tok.kind == TokenKind::SemiColon);

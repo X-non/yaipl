@@ -35,16 +35,16 @@ impl Ast {
 
 #[derive(Debug)]
 pub struct Module {
-    pub items: Vec<Item>,
+    pub items: Vec<ItemKind>,
 }
 
 #[derive(Debug, Clone)]
 pub struct FnArguments {
-    pub arguments: SmallVec<Expr, 5>,
+    pub arguments: SmallVec<ExprKind, 5>,
 }
 
 impl FnArguments {
-    pub fn new(arguments: SmallVec<Expr, 5>) -> Self {
+    pub fn new(arguments: SmallVec<ExprKind, 5>) -> Self {
         Self { arguments }
     }
     pub fn empty() -> Self {
@@ -53,13 +53,15 @@ impl FnArguments {
         }
     }
 }
+
 #[derive(Debug, Clone)]
 pub struct FnCall {
-    pub callee: Expr,
+    pub callee: ExprKind,
     pub arguments: FnArguments,
 }
+
 #[derive(Debug, Clone)]
-pub enum Expr {
+pub enum ExprKind {
     Integer(u64),
     Float(f64),
     Bool(bool),
@@ -67,13 +69,13 @@ pub enum Expr {
     String(Interned<StrLiteral>),
     FnCall(Box<FnCall>),
     Variable(Identifier),
-    UnaryMinus(Box<Expr>),
+    UnaryMinus(Box<ExprKind>),
 }
 #[derive(Debug, Clone)]
 pub struct Binary {
     pub op: BinaryOp,
-    pub lhs: Box<Expr>,
-    pub rhs: Box<Expr>,
+    pub lhs: Box<ExprKind>,
+    pub rhs: Box<ExprKind>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -112,16 +114,16 @@ impl TryFrom<TokenKind> for BinaryOp {
 
 #[derive(Debug, Clone)]
 pub struct IfBranch {
-    pub condition: Expr,
+    pub condition: ExprKind,
     pub block: Block,
 }
 #[derive(Debug, Clone)]
 pub struct Block {
-    pub stmts: Vec<Stmt>,
+    pub stmts: Vec<StmtKind>,
 }
 
 impl Block {
-    pub fn stmts(&self) -> &[Stmt] {
+    pub fn stmts(&self) -> &[StmtKind] {
         self.stmts.as_ref()
     }
 }
@@ -134,7 +136,7 @@ pub struct IfBranchSet {
 }
 
 #[derive(Debug)]
-pub enum Item {
+pub enum ItemKind {
     FnDecl(FnDecl),
 }
 
@@ -147,20 +149,20 @@ pub struct FnDecl {
 #[derive(Debug, Clone)]
 pub struct VaribleDecl {
     pub name: Identifier,
-    pub intializer: Expr,
+    pub intializer: ExprKind,
 }
 #[derive(Debug, Clone)]
-pub enum Stmt {
+pub enum StmtKind {
     If(IfBranchSet),
     Block(Block),
     VaribleDecl(VaribleDecl),
-    Expr(Expr),
+    Expr(ExprKind),
 }
 
-impl Stmt {
+impl StmtKind {
     pub(crate) fn needs_semi_colon(&self) -> bool {
         match self {
-            Stmt::If(_) | Stmt::Block(_) => false,
+            StmtKind::If(_) | StmtKind::Block(_) => false,
             _ => true,
         }
     }
