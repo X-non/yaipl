@@ -1,7 +1,7 @@
 use std::{ops::Range, rc::Rc};
 
 use crate::{
-    frontend::lexer::TokenKind,
+    frontend::{lexer::TokenKind, span::Span},
     utils::{
         interner::{
             branded::{Ident, Identifier, StrLiteral},
@@ -58,6 +58,12 @@ impl FnArguments {
 pub struct FnCall {
     pub callee: ExprKind,
     pub arguments: FnArguments,
+}
+
+#[derive(Debug, Clone)]
+pub struct Expr {
+    pub span: Span,
+    pub kind: ExprKind,
 }
 
 #[derive(Debug, Clone)]
@@ -134,8 +140,13 @@ pub struct IfBranchSet {
     pub else_if_branches: Vec<IfBranch>,
     pub else_block: Option<Block>,
 }
+#[derive(Debug, Clone)]
+pub struct Item {
+    pub kind: ItemKind,
+    pub span: Span,
+}
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ItemKind {
     FnDecl(FnDecl),
 }
@@ -150,6 +161,11 @@ pub struct FnDecl {
 pub struct VaribleDecl {
     pub name: Identifier,
     pub intializer: ExprKind,
+}
+#[derive(Debug, Clone)]
+struct Stmt {
+    pub span: Span,
+    pub kind: StmtKind,
 }
 #[derive(Debug, Clone)]
 pub enum StmtKind {
