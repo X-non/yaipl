@@ -9,8 +9,8 @@ use crate::utils::{
 };
 
 use self::ast::{
-    Block, ExprKind, FnArguments, FnCall, FnDecl, IfBranch, IfBranchSet, ItemKind, Module,
-    StmtKind, VaribleDecl,
+    Block, Expr, ExprKind, FnArguments, FnCall, FnDecl, IfBranch, IfBranchSet, Item, ItemKind,
+    Module, Stmt, StmtKind, VaribleDecl,
 };
 
 use super::{
@@ -107,17 +107,17 @@ impl<'src> Parser<'src> {
         Ok(Module { items })
     }
 
-    fn parse_item(&mut self) -> ParseResult<ItemKind> {
-        let start_of_item = self.eat();
-
-        let item = match start_of_item.kind {
-            TokenKind::Func => {
-                let fn_decl = self.parse_fn_decl()?;
-                ItemKind::FnDecl(fn_decl)
-            }
-            _ => return Err(ParseError::UnexpectedToken(start_of_item.span)),
-        };
-        Ok(item)
+    fn parse_item(&mut self) -> ParseResult<Item> {
+        if let Some(fn_token) = self.eat_if(|token| token.kind == TokenKind::Func) {
+            let fn_decl = self.parse_fn_decl()?;
+            let item = Item {
+                kind: ItemKind::FnDecl(fn_decl),
+                span: fn_token.span.combine(fn_decl.block.span), // FIXME: This is kinda hacky
+            };
+            Ok(item)
+        } else {
+            Err(ParseError::UnexpectedToken(self.peek().span))
+        }
     }
 
     fn parse_if(&mut self) -> ParseResult<IfBranchSet> {
@@ -154,61 +154,90 @@ impl<'src> Parser<'src> {
     fn parse_if_branch(&mut self) -> ParseResult<IfBranch> {
         let condition = self.parse_expr()?;
         let block = self.parse_block(true)?;
-        Ok(IfBranch { condition, block })
+        Ok(IfBranch {
+            condition,
+            block,
+            span: condition.span.combine(block.span), //FIXME: Should probobly include the if or else, if tokens spans
+        })
     }
 
-    fn parse_expr(&mut self) -> ParseResult<ExprKind> {
+    fn parse_expr(&mut self) -> ParseResult<Expr> {
         self.parse_term()
     }
 
-    fn parse_call_expr(&mut self) -> ParseResult<ExprKind> {
+    fn parse_call_expr(&mut self) -> ParseResult<Expr> {
         let mut expr = self.parse_primary()?;
         while self
             .eat_if(|token| token.kind == TokenKind::LeftParen)
             .is_some()
         {
-            let arguments = self.parse_argument_list()?;
-            expr = ExprKind::FnCall(Box::new(FnCall {
+            let (right_paren, arguments) = self.parse_argument_list()?;
+
+            let kind = ExprKind::FnCall(Box::new(FnCall {
                 arguments,
                 callee: expr,
             }));
+
+            expr = Expr {
+                kind,
+                span: expr.span.combine(right_paren),
+            };
         }
         Ok(expr)
     }
-    fn parse_primary(&mut self) -> ParseResult<ExprKind> {
-        self.map_eat_if(|token| match token.kind {
-            TokenKind::Integer(num) => Ok(ExprKind::Integer(num)),
-            TokenKind::Float(num) => Ok(ExprKind::Float(num)),
-            TokenKind::String(string) => Ok(ExprKind::String(string)),
-            TokenKind::Ident(ident) => Ok(ExprKind::Variable(ident)),
-            TokenKind::True => Ok(ExprKind::Bool(true)),
-            TokenKind::False => Ok(ExprKind::Bool(false)),
-            _ => return Err(ParseError::UnexpectedToken(token.span)),
+    fn parse_primary(&mut self) -> ParseResult<Expr> {
+        self.map_eat_if(|token| {
+            let kind = match token.kind {
+                TokenKind::Integer(num) => ExprKind::Integer(num),
+                TokenKind::Float(num) => ExprKind::Float(num),
+                TokenKind::String(string) => ExprKind::String(string),
+                TokenKind::Ident(ident) => ExprKind::Variable(ident),
+                TokenKind::True => ExprKind::Bool(true),
+                TokenKind::False => ExprKind::Bool(false),
+                _ => return Err(ParseError::UnexpectedToken(token.span)),
+            };
+            Ok(Expr {
+                kind,
+                span: token.span,
+            })
         })
     }
-    fn parse_stmt(&mut self) -> ParseResult<StmtKind> {
-        let stmt;
-        if self.eat_if(|token| token.kind == TokenKind::If).is_some() {
-            stmt = StmtKind::If(self.parse_if()?)
-        } else if self.eat_if(|token| token.kind == TokenKind::Let).is_some() {
-            stmt = StmtKind::VaribleDecl(self.parse_varible_decl()?)
-        } else if self
-            .eat_if(|token| token.kind == TokenKind::OpenBrace)
-            .is_some()
-        {
-            stmt = StmtKind::Block(self.parse_block(false)?)
+    fn parse_stmt(&mut self) -> ParseResult<Stmt> {
+        let kind;
+        let span;
+        if let Some(if_token) = self.eat_if(|token| token.kind == TokenKind::If) {
+            let if_branch_set = self.parse_if()?;
+            kind = StmtKind::If(if_branch_set);
+            span = if_token.span.combine(if_branch_set.span());
+        } else if let Some(let_token) = self.eat_if(|token| token.kind == TokenKind::Let) {
+            let varible_decl = self.parse_varible_decl()?;
+            kind = StmtKind::VaribleDecl(varible_decl);
+            span = let_token.span.combine(varible_decl.intializer.span);
+        } else if let Some(open_brace) = self.eat_if(|token| token.kind == TokenKind::OpenBrace) {
+            let mut block = self.parse_block(false)?;
+            block.span = open_brace.span.combine(block.span);
+            kind = StmtKind::Block(block);
+            span = block.span;
         } else {
-            stmt = StmtKind::Expr(self.parse_expr()?);
+            let expr = self.parse_expr()?;
+            kind = StmtKind::Expr(expr);
+            span = expr.span;
         };
 
         let semi_colon = self.eat_if(|tok| tok.kind == TokenKind::SemiColon);
+        let span = match &semi_colon {
+            Some(semi_colon) => semi_colon.span,
+            None => span,
+        };
 
-        if semi_colon.is_none() && stmt.needs_semi_colon() {
+        if semi_colon.is_none() && kind.needs_semi_colon() {
             return Err(ParseError::Expected(Box::new(TokenKind::SemiColon)));
         }
 
-        Ok(stmt)
+        Ok(Stmt { kind, span })
     }
+
+    // Fixme self.parse_block should probobly take something like Option<Token> and fix its own span
     fn parse_block(&mut self, consume_open_brace: bool) -> ParseResult<Block> {
         if consume_open_brace {
             self.eat_if(|token| token.kind == TokenKind::OpenBrace)
@@ -216,24 +245,26 @@ impl<'src> Parser<'src> {
         }
         let mut stmts = Vec::new();
 
-        loop {
-            let end_of_block = self
-                .eat_if(|token| token.kind == TokenKind::ClosedBrace)
-                .is_some();
-            if end_of_block {
-                eprintln!("end of block");
-                break;
+        let closed_brace = loop {
+            if let Some(closed_brace) = self.eat_if(|token| token.kind == TokenKind::ClosedBrace) {
+                break closed_brace;
             }
 
             stmts.push(self.parse_stmt()?);
-        }
+        };
 
-        Ok(Block { stmts })
+        let span = if let Some(stmt) = stmts.first() {
+            stmt.span.combine(closed_brace.span)
+        } else {
+            todo!("actually pass the open brace")
+        };
+
+        Ok(Block { stmts, span })
     }
 
     fn parse_varible_decl(&mut self) -> ParseResult<VaribleDecl> {
-        let name = self.map_eat_if(|tok| match tok.kind {
-            TokenKind::Ident(ident) => Ok(ident),
+        let (name, name_span) = self.map_eat_if(|tok| match tok.kind {
+            TokenKind::Ident(ident) => Ok((ident, tok.span)),
             _ => Err(ParseError::UnexpectedToken(tok.span)),
         })?;
 
@@ -241,49 +272,58 @@ impl<'src> Parser<'src> {
             .ok_or(ParseError::Expected(Box::new(TokenKind::Equal)))?;
 
         let intializer = self.parse_expr()?;
-        Ok(VaribleDecl { name, intializer })
+        Ok(VaribleDecl {
+            name,
+            intializer,
+            name_span,
+        })
     }
 
     fn parse_fn_decl(&mut self) -> ParseResult<FnDecl> {
-        let name = self.map_eat_if(|token| match token.kind {
-            TokenKind::Ident(name) => Ok(name),
+        let (name, name_span) = self.map_eat_if(|token| match token.kind {
+            TokenKind::Ident(name) => Ok((name, token.span)),
             _ => Err(ParseError::Expected(Box::new("Identifier"))),
         })?;
 
         let name = name;
         let block = self.parse_block(true)?;
 
-        Ok(FnDecl { name, block })
+        Ok(FnDecl {
+            name,
+            block,
+            name_span,
+        })
     }
 
-    fn parse_argument_list(&mut self) -> ParseResult<FnArguments> {
+    fn parse_argument_list(&mut self) -> ParseResult<(Span, FnArguments)> {
         //exists to disallow <callee>(,);
         let mut consumed_comma = false;
-        let mut argument_values = SmallVec::new();
+        let mut argument_exprs = SmallVec::new();
 
-        loop {
-            if self
-                .eat_if(|token| token.kind == TokenKind::RightParen)
-                .is_some()
-            {
-                break;
+        let right_paren = loop {
+            if let Some(right_paren) = self.eat_if(|token| token.kind == TokenKind::RightParen) {
+                break right_paren;
             }
 
-            argument_values.push(self.parse_expr()?);
+            argument_exprs.push(self.parse_expr()?);
             consumed_comma = self
                 .eat_if(|token| token.kind == TokenKind::Comma)
                 .is_some();
 
-            if self
-                .eat_if(|token| token.kind == TokenKind::RightParen)
-                .is_some()
-            {
-                break;
+            if let Some(right_paren) = self.eat_if(|token| token.kind == TokenKind::RightParen) {
+                break right_paren;
             }
-        }
-        if consumed_comma && argument_values.len() == 0 {
+        };
+
+        if consumed_comma && argument_exprs.len() == 0 {
             return Err(ParseError::FnArgOnlyComma);
         }
-        Ok(FnArguments::new(argument_values))
+        let fn_arguments = FnArguments {
+            arguments: argument_exprs,
+            span: argument_exprs
+                .first()
+                .map(|first| first.span.combine(argument_exprs.last().unwrap().span)),
+        };
+        Ok((right_paren.span, fn_arguments))
     }
 }

@@ -40,7 +40,7 @@ pub struct Module {
 
 #[derive(Debug, Clone)]
 pub struct FnArguments {
-    pub span: Span,
+    pub span: Option<Span>,
     pub arguments: SmallVec<Expr, 5>,
 }
 
@@ -65,7 +65,7 @@ pub enum ExprKind {
     String(Interned<StrLiteral>),
     FnCall(Box<FnCall>),
     Variable(Identifier),
-    UnaryMinus(Box<ExprKind>),
+    UnaryMinus(Box<Expr>),
 }
 #[derive(Debug, Clone)]
 pub struct Binary {
@@ -73,6 +73,12 @@ pub struct Binary {
     pub op: BinaryOp,
     pub lhs: Box<Expr>,
     pub rhs: Box<Expr>,
+}
+
+impl Binary {
+    pub fn span(&self) -> Span {
+        self.lhs.span.combine(self.rhs.span)
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -111,6 +117,7 @@ impl TryFrom<TokenKind> for BinaryOp {
 
 #[derive(Debug, Clone)]
 pub struct IfBranch {
+    pub span: Span,
     pub condition: Expr,
     pub block: Block,
 }
@@ -131,6 +138,21 @@ pub struct IfBranchSet {
     pub if_branch: IfBranch,
     pub else_if_branches: Vec<IfBranch>,
     pub else_block: Option<Block>,
+}
+
+impl IfBranchSet {
+    pub fn span(&self) -> Span {
+        let span = self.if_branch.span;
+        if let Some(else_block) = self.else_block {
+            return span.combine(else_block.span);
+        }
+
+        if let Some(last_else_if) = self.else_if_branches.last() {
+            return span.combine(last_else_if.span);
+        }
+
+        span
+    }
 }
 #[derive(Debug, Clone)]
 pub struct Item {
@@ -166,7 +188,7 @@ pub enum StmtKind {
     If(IfBranchSet),
     Block(Block),
     VaribleDecl(VaribleDecl),
-    Expr(ExprKind),
+    Expr(Expr),
 }
 
 impl StmtKind {
