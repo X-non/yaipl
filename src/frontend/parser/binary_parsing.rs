@@ -28,8 +28,8 @@ impl<'src> Parser<'src> {
                 rhs: Box::new(rhs),
             };
             workning_expr = Expr {
-                kind: ExprKind::Binary(binary),
                 span: binary.span(),
+                kind: ExprKind::Binary(binary),
             }
         }
         Ok(workning_expr)

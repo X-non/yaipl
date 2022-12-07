@@ -143,7 +143,7 @@ pub struct IfBranchSet {
 impl IfBranchSet {
     pub fn span(&self) -> Span {
         let span = self.if_branch.span;
-        if let Some(else_block) = self.else_block {
+        if let Some(else_block) = &self.else_block {
             return span.combine(else_block.span);
         }
 

@@ -201,7 +201,7 @@ impl Evaluatable for Block {
 }
 impl Evaluatable for Stmt {
     fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, RuntimeError> {
-        match self.kind {
+        match &self.kind {
             StmtKind::If(set) => set.evaluate(context)?,
             StmtKind::Block(block) => block.evaluate(context)?,
             StmtKind::VaribleDecl(decl) => {
@@ -246,20 +246,20 @@ impl Evaluatable for Expr {
     type Value = RuntimeValue;
 
     fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, RuntimeError> {
-        match self.kind {
-            ExprKind::Integer(int) => Ok(int.try_into()?),
-            ExprKind::Float(float) => Ok(float.into()),
-            ExprKind::Bool(v) => Ok(v.into()),
+        match &self.kind {
+            ExprKind::Integer(int) => Ok((*int).try_into()?),
+            ExprKind::Float(float) => Ok((*float).into()),
+            ExprKind::Bool(v) => Ok((*v).into()),
             ExprKind::String(text) => Ok(RuntimeValue::String(
-                context.strings.lookup(text).to_string(),
+                context.strings.lookup(*text).to_string(),
             )),
             ExprKind::Variable(name) => Ok(context
                 .enviroment
                 .map
                 .get(&name)
-                .ok_or(RuntimeError::Undeclared(name))? // not in enviorment
+                .ok_or(RuntimeError::Undeclared(*name))? // not in enviorment
                 .as_ref()
-                .ok_or(RuntimeError::Undefined(name))? // varible in enviorment but not set
+                .ok_or(RuntimeError::Undefined(*name))? // varible in enviorment but not set
                 .clone()),
             ExprKind::FnCall(call) => call.evaluate(context),
             ExprKind::Binary(binary) => {

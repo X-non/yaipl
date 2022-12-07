@@ -111,8 +111,8 @@ impl<'src> Parser<'src> {
         if let Some(fn_token) = self.eat_if(|token| token.kind == TokenKind::Func) {
             let fn_decl = self.parse_fn_decl()?;
             let item = Item {
-                kind: ItemKind::FnDecl(fn_decl),
                 span: fn_token.span.combine(fn_decl.block.span), // FIXME: This is kinda hacky
+                kind: ItemKind::FnDecl(fn_decl),
             };
             Ok(item)
         } else {
@@ -155,9 +155,9 @@ impl<'src> Parser<'src> {
         let condition = self.parse_expr()?;
         let block = self.parse_block(true)?;
         Ok(IfBranch {
+            span: condition.span.combine(block.span), //FIXME: Should probobly include the if or [else, if] tokens spans
             condition,
             block,
-            span: condition.span.combine(block.span), //FIXME: Should probobly include the if or else, if tokens spans
         })
     }
 
@@ -173,14 +173,15 @@ impl<'src> Parser<'src> {
         {
             let (right_paren, arguments) = self.parse_argument_list()?;
 
+            let expr_span = expr.span;
             let kind = ExprKind::FnCall(Box::new(FnCall {
                 arguments,
                 callee: expr,
             }));
 
             expr = Expr {
+                span: expr_span.combine(right_paren),
                 kind,
-                span: expr.span.combine(right_paren),
             };
         }
         Ok(expr)
@@ -207,21 +208,21 @@ impl<'src> Parser<'src> {
         let span;
         if let Some(if_token) = self.eat_if(|token| token.kind == TokenKind::If) {
             let if_branch_set = self.parse_if()?;
-            kind = StmtKind::If(if_branch_set);
             span = if_token.span.combine(if_branch_set.span());
+            kind = StmtKind::If(if_branch_set);
         } else if let Some(let_token) = self.eat_if(|token| token.kind == TokenKind::Let) {
             let varible_decl = self.parse_varible_decl()?;
-            kind = StmtKind::VaribleDecl(varible_decl);
             span = let_token.span.combine(varible_decl.intializer.span);
+            kind = StmtKind::VaribleDecl(varible_decl);
         } else if let Some(open_brace) = self.eat_if(|token| token.kind == TokenKind::OpenBrace) {
             let mut block = self.parse_block(false)?;
             block.span = open_brace.span.combine(block.span);
-            kind = StmtKind::Block(block);
             span = block.span;
+            kind = StmtKind::Block(block);
         } else {
             let expr = self.parse_expr()?;
-            kind = StmtKind::Expr(expr);
             span = expr.span;
+            kind = StmtKind::Expr(expr);
         };
 
         let semi_colon = self.eat_if(|tok| tok.kind == TokenKind::SemiColon);
@@ -319,10 +320,10 @@ impl<'src> Parser<'src> {
             return Err(ParseError::FnArgOnlyComma);
         }
         let fn_arguments = FnArguments {
-            arguments: argument_exprs,
             span: argument_exprs
                 .first()
                 .map(|first| first.span.combine(argument_exprs.last().unwrap().span)),
+            arguments: argument_exprs,
         };
         Ok((right_paren.span, fn_arguments))
     }

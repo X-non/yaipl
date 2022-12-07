@@ -1,13 +1,8 @@
-use std::{
-    cell::Cell,
-    fmt::{Debug, Display},
-    iter::{once, Once},
-    rc::Rc,
-    usize,
-};
+use std::{fmt::Display, rc::Rc, usize};
 
 use crate::frontend::parser::ast::{
-    Ast, Block, ExprKind, FnDecl, IfBranch, IfBranchSet, ItemKind, Module, StmtKind, VaribleDecl,
+    Ast, Block, Expr, ExprKind, FnDecl, IfBranch, IfBranchSet, Item, ItemKind, Module, Stmt,
+    StmtKind, VaribleDecl,
 };
 use std::fmt::Write;
 
@@ -82,9 +77,9 @@ impl<T: TreePrintable> TreePrintable for &T {
     }
 }
 
-impl TreePrintable for ExprKind {
+impl TreePrintable for Expr {
     fn print(&self, printer: &mut TreePrinter) {
-        match self {
+        match &self.kind {
             ExprKind::Integer(val) => printer.emit(format!("Literal int `{val}`")),
             ExprKind::Float(val) => printer.emit(format!("Literal float `{val}`")),
             ExprKind::Bool(val) => printer.emit(format!("Literal bool `{val}`")),
@@ -120,9 +115,9 @@ impl TreePrintable for ExprKind {
     }
 }
 
-impl TreePrintable for StmtKind {
+impl TreePrintable for Stmt {
     fn print(&self, printer: &mut TreePrinter) {
-        match self {
+        match &self.kind {
             StmtKind::If(IfBranchSet {
                 if_branch,
                 else_if_branches,
@@ -133,11 +128,12 @@ impl TreePrintable for StmtKind {
                     if_branch.block.print(printer);
                 });
 
-                for (i, IfBranch { condition, block }) in else_if_branches.iter().enumerate() {
+                for (i, else_if_branch) in else_if_branches.iter().enumerate() {
                     printer.emit_labled(format!("If Else #{}", i), |printer| {
-                        printer
-                            .emit_labled("Conditon", |printer| if_branch.condition.print(printer));
-                        if_branch.block.print(printer);
+                        printer.emit_labled("Conditon", |printer| {
+                            else_if_branch.condition.print(printer)
+                        });
+                        else_if_branch.block.print(printer);
                     })
                 }
                 if let Some(else_block) = else_block.as_ref() {
@@ -181,9 +177,9 @@ impl TreePrintable for Module {
     }
 }
 
-impl TreePrintable for ItemKind {
+impl TreePrintable for Item {
     fn print(&self, printer: &mut TreePrinter) {
-        match self {
+        match &self.kind {
             ItemKind::FnDecl(fn_decl) => fn_decl.print(printer),
         }
     }
