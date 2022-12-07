@@ -111,7 +111,11 @@ impl TreePrintable for Expr {
                     binary.rhs.print(printer);
                 })
             }
-            Expr::UnaryMinus(_) => todo!(),
+            Expr::UnaryMinus(content) => {
+                printer.emit_labled("UnaryMinus", |printer| {
+                    content.print(printer);
+                });
+            }
         }
     }
 }
