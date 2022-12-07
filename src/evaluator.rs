@@ -12,7 +12,7 @@ use self::io_adaptor::{IoAdaptor, StdIOAdaptor};
 
 use crate::{
     frontend::{
-        parser::ast::{Block, Expr, FnCall, IfBranch, IfBranchSet, Module, Stmt},
+        parser::ast::{BinaryOp, Block, Expr, FnCall, IfBranch, IfBranchSet, Module, Stmt},
         semantic_analysis::{AnnotatedAst, SymbolEntry, SymbolTable, Type},
     },
     utils::interner::{
@@ -27,6 +27,7 @@ pub fn evaluate(ast: AnnotatedAst) -> Result<(), RuntimeError> {
 
 #[derive(Debug)]
 pub enum RuntimeError {
+    BinaryTypeMissmatch(BinaryOp, Type, Type),
     TypeMismatch { expected: Type, fount: Type },
     Undefined(Interned<Ident>),
     Overflow,
@@ -259,6 +260,76 @@ impl Evaluatable for Expr {
                 .ok_or(RuntimeError::Undefined(name))? // varible in enviorment but not set
                 .clone()),
             Expr::FnCall(call) => call.evaluate(context),
+            Expr::Binary(binary) => {
+                let lhs = (&*binary.lhs).evaluate(context)?;
+                let rhs = (&*binary.rhs).evaluate(context)?;
+                let result = match binary.op {
+                    BinaryOp::Add => match (lhs, rhs) {
+                        (RuntimeValue::Int(lhs), RuntimeValue::Int(rhs)) => {
+                            RuntimeValue::Int(lhs + rhs)
+                        }
+                        (RuntimeValue::Float(lhs), RuntimeValue::Float(rhs)) => {
+                            RuntimeValue::Float(lhs + rhs)
+                        }
+                        (lhs, rhs) => {
+                            return Err(RuntimeError::BinaryTypeMissmatch(
+                                binary.op,
+                                lhs.ty(),
+                                rhs.ty(),
+                            ))
+                        }
+                    },
+                    BinaryOp::Sub => match (lhs, rhs) {
+                        (RuntimeValue::Int(lhs), RuntimeValue::Int(rhs)) => {
+                            RuntimeValue::Int(lhs + rhs)
+                        }
+                        (RuntimeValue::Float(lhs), RuntimeValue::Float(rhs)) => {
+                            RuntimeValue::Float(lhs + rhs)
+                        }
+                        (lhs, rhs) => {
+                            return Err(RuntimeError::BinaryTypeMissmatch(
+                                binary.op,
+                                lhs.ty(),
+                                rhs.ty(),
+                            ))
+                        }
+                    },
+                    BinaryOp::Mul => match (lhs, rhs) {
+                        (RuntimeValue::Int(lhs), RuntimeValue::Int(rhs)) => {
+                            RuntimeValue::Int(lhs + rhs)
+                        }
+                        (RuntimeValue::Float(lhs), RuntimeValue::Float(rhs)) => {
+                            RuntimeValue::Float(lhs + rhs)
+                        }
+                        (lhs, rhs) => {
+                            return Err(RuntimeError::BinaryTypeMissmatch(
+                                binary.op,
+                                lhs.ty(),
+                                rhs.ty(),
+                            ))
+                        }
+                    },
+                    BinaryOp::Div => match (lhs, rhs) {
+                        (RuntimeValue::Int(lhs), RuntimeValue::Int(rhs)) => {
+                            RuntimeValue::Int(lhs + rhs)
+                        }
+
+                        (RuntimeValue::Float(lhs), RuntimeValue::Float(rhs)) => {
+                            RuntimeValue::Float(lhs + rhs)
+                        }
+
+                        (lhs, rhs) => {
+                            return Err(RuntimeError::BinaryTypeMissmatch(
+                                binary.op,
+                                lhs.ty(),
+                                rhs.ty(),
+                            ))
+                        }
+                    },
+                };
+                Ok(result)
+            }
+            Expr::UnaryMinus(_) => todo!(),
         }
     }
 }
