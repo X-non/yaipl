@@ -40,18 +40,8 @@ pub struct Module {
 
 #[derive(Debug, Clone)]
 pub struct FnArguments {
+    pub span: Span,
     pub arguments: SmallVec<ExprKind, 5>,
-}
-
-impl FnArguments {
-    pub fn new(arguments: SmallVec<ExprKind, 5>) -> Self {
-        Self { arguments }
-    }
-    pub fn empty() -> Self {
-        Self {
-            arguments: Default::default(),
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -79,6 +69,7 @@ pub enum ExprKind {
 }
 #[derive(Debug, Clone)]
 pub struct Binary {
+    pub op_span: Span,
     pub op: BinaryOp,
     pub lhs: Box<ExprKind>,
     pub rhs: Box<ExprKind>,
@@ -153,12 +144,14 @@ pub enum ItemKind {
 
 #[derive(Debug, Clone)]
 pub struct FnDecl {
+    pub name_span: Span,
     pub name: Identifier,
     pub block: Block,
 }
 
 #[derive(Debug, Clone)]
 pub struct VaribleDecl {
+    pub name_span: Span,
     pub name: Identifier,
     pub intializer: ExprKind,
 }
