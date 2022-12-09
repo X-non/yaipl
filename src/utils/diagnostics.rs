@@ -46,7 +46,7 @@ pub fn resolve_span(newlines: &[u32], span: Span) -> SrcFileCoordinate {
     }
 }
 pub fn resolve_span_from_src(src: &str, span: Span) -> SrcFileCoordinate {
-    let (before, after) = src.split_at(span.byte_offset() as usize);
+    let before = &src[..(span.byte_offset() as usize)];
     let col = before.len() - before.rfind('\n').unwrap_or_default();
     let line = before.chars().filter(|&c| c == '\n').count();
 
