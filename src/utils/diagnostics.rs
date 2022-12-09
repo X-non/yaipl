@@ -1,14 +1,38 @@
+use std::cell::RefCell;
+
 use crate::frontend::span::Span;
 
-struct DiagnosticContext<'src> {
+pub struct DiagnosticContext<'src> {
     src: &'src str,
-    newlines: Vec<u32>,
+
+    newlines_generated_until: u32,
+    newlines: RefCell<Vec<u32>>,
+}
+
+impl<'src> DiagnosticContext<'src> {
+    pub fn new(src: &'src str) -> Self {
+        Self {
+            src,
+            newlines_generated_until: 0,
+            newlines: Default::default(),
+        }
+    }
+    pub fn resolve_span(&self, span: Span) -> SrcFileCoordinate {
+        //FIXME: mabye use the cache
+        resolve_span_from_src(self.src, span)
+    }
 }
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct SrcFileCoordinate {
     pub line: u32,
     pub column: u32,
+}
+
+impl std::fmt::Display for SrcFileCoordinate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, ":{}:{}", self.line, self.column)
+    }
 }
 
 pub fn resolve_span(newlines: &[u32], span: Span) -> SrcFileCoordinate {
