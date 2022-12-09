@@ -1,16 +1,14 @@
 use std::{fmt::Display, rc::Rc, usize};
 
-use crate::frontend::{
-    parser::ast::{
-        Ast, Block, Expr, ExprKind, FnDecl, IfBranch, IfBranchSet, Item, ItemKind, Module, Stmt,
-        StmtKind, VaribleDecl,
-    },
-    span::Span,
+use crate::frontend::parser::ast::{
+    Ast, Block, Expr, ExprKind, FnDecl, IfBranchSet, Item, ItemKind, Module, Stmt, StmtKind,
+    VaribleDecl,
 };
+use crate::frontend::span::Span;
 use std::fmt::Write;
 
 use super::{
-    diagnostics::{self, DiagnosticContext},
+    diagnostics::DiagnosticContext,
     interner::{
         branded::{Ident, Identifier, StrLiteral},
         Interned, Interner,
