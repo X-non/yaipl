@@ -40,14 +40,12 @@ pub struct EOF;
 
 pub struct Parser<'src> {
     lexer: Lexer<'src>,
-    src: &'src str,
 }
 
 impl<'src> Parser<'src> {
     pub fn new(src: &'src str) -> Self {
         Self {
             lexer: Lexer::new(src),
-            src,
         }
     }
     pub fn into_interners(self) -> (Interner<Ident>, Interner<StrLiteral>) {
