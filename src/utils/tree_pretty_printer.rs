@@ -1,46 +1,81 @@
 use std::{fmt::Display, rc::Rc, usize};
 
-use crate::frontend::parser::ast::{
-    Ast, Block, Expr, ExprKind, FnDecl, IfBranch, IfBranchSet, Item, ItemKind, Module, Stmt,
-    StmtKind, VaribleDecl,
+use crate::frontend::{
+    parser::ast::{
+        Ast, Block, Expr, ExprKind, FnDecl, IfBranch, IfBranchSet, Item, ItemKind, Module, Stmt,
+        StmtKind, VaribleDecl,
+    },
+    span::Span,
 };
 use std::fmt::Write;
 
-use super::interner::{
-    branded::{Ident, Identifier, StrLiteral},
-    Interned, Interner,
+use super::{
+    diagnostics::{self, DiagnosticContext},
+    interner::{
+        branded::{Ident, Identifier, StrLiteral},
+        Interned, Interner,
+    },
 };
 
-struct TreePrinter {
+pub struct AstPrinter {
+    diagnostic_context: Rc<DiagnosticContext<'static>>,
     idents: Rc<Interner<Ident>>,
     str_literals: Rc<Interner<StrLiteral>>,
     current_indent: usize,
     rows: String,
 }
 
-impl Display for TreePrinter {
+impl Display for AstPrinter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.rows)
     }
 }
 
-impl TreePrinter {
+impl AstPrinter {
     pub fn resolve_str(&self, interned: Interned<StrLiteral>) -> &str {
         self.str_literals.lookup(interned)
     }
     pub fn resovle_ident(&self, interned: Identifier) -> &str {
         self.idents.lookup(interned)
     }
-    fn new(idents: Rc<Interner<Ident>>, str_literals: Rc<Interner<StrLiteral>>) -> Self {
+    fn new(
+        idents: Rc<Interner<Ident>>,
+        str_literals: Rc<Interner<StrLiteral>>,
+        diagnostic_context: Rc<DiagnosticContext<'static>>,
+    ) -> Self {
         Self {
             rows: Default::default(),
             current_indent: 0,
             idents,
             str_literals,
+            diagnostic_context,
         }
+    }
+    pub fn from_node<Node: TreePrintable>(
+        node: &Node,
+        idents: Rc<Interner<Ident>>,
+        str_literals: Rc<Interner<StrLiteral>>,
+        diagnostic_context: Rc<DiagnosticContext<'static>>,
+    ) -> Self {
+        let mut printer = Self::new(idents, str_literals, diagnostic_context);
+        printer.write(node);
+        printer
+    }
+    pub fn write<Node: TreePrintable>(&mut self, node: &Node) {
+        node.print(self);
     }
     fn indent(&self) -> String {
         "  ".repeat(self.current_indent)
+    }
+    pub fn emit_located(&mut self, row: impl AsRef<str>, span: Span) {
+        writeln!(
+            self.rows,
+            "{}{}{}",
+            self.indent(),
+            row.as_ref(),
+            self.diagnostic_context.resolve_span(span)
+        )
+        .unwrap();
     }
     pub fn emit(&mut self, row: impl AsRef<str>) {
         writeln!(self.rows, "{}{}", self.indent(), row.as_ref()).unwrap();
@@ -67,18 +102,18 @@ impl TreePrinter {
         self.emit_indented(|printer| f(printer));
     }
 }
-trait TreePrintable {
-    fn print(&self, printer: &mut TreePrinter);
+pub trait TreePrintable {
+    fn print(&self, printer: &mut AstPrinter);
 }
 
 impl<T: TreePrintable> TreePrintable for &T {
-    fn print(&self, printer: &mut TreePrinter) {
+    fn print(&self, printer: &mut AstPrinter) {
         <T as TreePrintable>::print(*self, printer)
     }
 }
 
 impl TreePrintable for Expr {
-    fn print(&self, printer: &mut TreePrinter) {
+    fn print(&self, printer: &mut AstPrinter) {
         match &self.kind {
             ExprKind::Integer(val) => printer.emit(format!("Literal int `{val}`")),
             ExprKind::Float(val) => printer.emit(format!("Literal float `{val}`")),
@@ -116,7 +151,7 @@ impl TreePrintable for Expr {
 }
 
 impl TreePrintable for Stmt {
-    fn print(&self, printer: &mut TreePrinter) {
+    fn print(&self, printer: &mut AstPrinter) {
         match &self.kind {
             StmtKind::If(IfBranchSet {
                 if_branch,
@@ -150,7 +185,7 @@ impl TreePrintable for Stmt {
     }
 }
 impl TreePrintable for Block {
-    fn print(&self, printer: &mut TreePrinter) {
+    fn print(&self, printer: &mut AstPrinter) {
         printer.emit("Block");
 
         if self.stmts().is_empty() {
@@ -162,7 +197,7 @@ impl TreePrintable for Block {
 }
 
 impl TreePrintable for VaribleDecl {
-    fn print(&self, printer: &mut TreePrinter) {
+    fn print(&self, printer: &mut AstPrinter) {
         printer.emit(format!("VarDecl of `{}`", printer.resovle_ident(self.name)));
         printer.emit_indented(|printer| {
             printer.emit_labled("Initalizer", |printer| self.intializer.print(printer))
@@ -171,36 +206,28 @@ impl TreePrintable for VaribleDecl {
 }
 
 impl TreePrintable for Module {
-    fn print(&self, printer: &mut TreePrinter) {
+    fn print(&self, printer: &mut AstPrinter) {
         printer.emit("Module");
         printer.emit_children(&self.items);
     }
 }
 
 impl TreePrintable for Item {
-    fn print(&self, printer: &mut TreePrinter) {
+    fn print(&self, printer: &mut AstPrinter) {
         match &self.kind {
             ItemKind::FnDecl(fn_decl) => fn_decl.print(printer),
         }
     }
 }
 impl TreePrintable for FnDecl {
-    fn print(&self, printer: &mut TreePrinter) {
+    fn print(&self, printer: &mut AstPrinter) {
         printer.emit(format!("FnDecl `{}`", printer.resovle_ident(self.name)));
         printer.emit_indented(|printer| self.block.print(printer));
     }
 }
 
 impl TreePrintable for Ast {
-    fn print(&self, printer: &mut TreePrinter) {
+    fn print(&self, printer: &mut AstPrinter) {
         self.root.print(printer);
-    }
-}
-
-impl std::fmt::Display for Ast {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut printer = TreePrinter::new(self.identifiers.clone(), self.strings.clone());
-        self.print(&mut printer);
-        write!(f, "{}", printer)
     }
 }
