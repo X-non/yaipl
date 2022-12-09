@@ -169,7 +169,7 @@ struct Enviorments {
     global: EnviormentFrame,
     stack: Vec<EnviormentFrame>,
 }
-
+#[allow(dead_code)]
 impl Enviorments {
     fn new() -> Self {
         Self {
