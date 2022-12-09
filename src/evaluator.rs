@@ -4,6 +4,7 @@ mod io_adaptor;
 use std::{
     collections::{hash_map::Entry, HashMap},
     fmt::Display,
+    iter::once,
     rc::Rc,
 };
 
@@ -16,6 +17,7 @@ use crate::{
             BinaryOp, Block, Expr, ExprKind, FnCall, IfBranch, IfBranchSet, Module, Stmt, StmtKind,
         },
         semantic_analysis::{AnnotatedAst, SymbolEntry, SymbolTable, Type},
+        span::Span,
     },
     utils::interner::{
         branded::{Ident, Identifier, StrLiteral},
@@ -31,7 +33,7 @@ pub fn evaluate(ast: AnnotatedAst) -> Result<(), RuntimeError> {
 pub enum RuntimeError {
     BinaryTypeMissmatch(BinaryOp, Type, Type),
     TypeMismatch { expected: Type, fount: Type },
-    Undefined(Interned<Ident>),
+    Uninitalized(Interned<Ident>),
     Overflow,
     Shadowed(Interned<Ident>),
     Undeclared(Interned<Ident>),
@@ -113,16 +115,109 @@ impl RuntimeValue {
         }
     }
 }
-struct Enviroment {
-    map: HashMap<Identifier, Option<RuntimeValue>>,
+#[derive(Debug, Clone)]
+struct Variable {
+    decl_span: Span,
+    kind: VariableKind,
 }
-impl Enviroment {
-    fn new() -> Enviroment {
+
+impl Variable {
+    pub fn assign(&mut self, value: RuntimeValue) {
+        self.kind = VariableKind::Initialized(value);
+    }
+}
+
+#[derive(Debug, Clone)]
+enum VariableKind {
+    Initialized(RuntimeValue),
+    Uninitialized,
+}
+struct EnviormentFrame {
+    map: HashMap<Identifier, Variable>,
+}
+impl EnviormentFrame {
+    fn new() -> EnviormentFrame {
         Self {
             map: Default::default(),
         }
     }
+
+    fn get(&self, name: Identifier) -> Option<&Variable> {
+        self.map.get(&name)
+    }
+
+    fn get_mut(&mut self, name: Identifier) -> Option<&mut Variable> {
+        self.map.get_mut(&name)
+    }
+
+    fn define_variable(&mut self, name: Identifier, variable_span: Span) -> Option<&mut Variable> {
+        match self.map.entry(name) {
+            Entry::Occupied(_) => None,
+            Entry::Vacant(entry) => Some(entry.insert(Variable {
+                decl_span: variable_span,
+                kind: VariableKind::Uninitialized,
+            })),
+        }
+    }
+    fn set(&mut self, name: Identifier, value: RuntimeValue) -> Result<(), RuntimeError> {
+        let a = self.get_mut(name).ok_or(RuntimeError::Undeclared(name))?;
+        a.assign(value);
+        Ok(())
+    }
 }
+struct Enviorments {
+    global: EnviormentFrame,
+    stack: Vec<EnviormentFrame>,
+}
+
+impl Enviorments {
+    fn new() -> Self {
+        Self {
+            stack: vec![EnviormentFrame::new()],
+            global: EnviormentFrame::new(),
+        }
+    }
+    pub fn scope_enter(&mut self) {
+        self.stack.push(EnviormentFrame::new())
+    }
+
+    pub fn scope_exit(&mut self) {
+        self.stack
+            .pop()
+            .expect("[Internal Iterpreter Error]: tried to pop the global enviorment");
+    }
+    fn resolve_iter_mut(&mut self) -> impl Iterator<Item = &mut EnviormentFrame> {
+        self.stack.iter_mut().chain(once(&mut self.global))
+    }
+    fn resolve_iter(&self) -> impl Iterator<Item = &EnviormentFrame> {
+        self.stack.iter().rev().chain(once(&self.global))
+    }
+    fn current_frame_mut(&mut self) -> &mut EnviormentFrame {
+        self.stack.last_mut().unwrap_or(&mut self.global)
+    }
+    fn current_frame(&self) -> &EnviormentFrame {
+        self.stack.last().unwrap_or(&self.global)
+    }
+    fn resolve(&self, name: Identifier) -> Result<RuntimeValue, RuntimeError> {
+        self.resolve_iter()
+            .find_map(|frame| frame.get(name))
+            .ok_or(RuntimeError::Undeclared(name))
+            .and_then(|variable| match &variable.kind {
+                VariableKind::Initialized(value) => Ok(value.clone()),
+                VariableKind::Uninitialized => Err(RuntimeError::Uninitalized(name)),
+            })
+    }
+    fn define(&mut self, name: Identifier, variable_span: Span) -> Result<(), RuntimeError> {
+        self.current_frame_mut()
+            .define_variable(name, variable_span)
+            .ok_or(RuntimeError::Shadowed(name))?;
+        Ok(())
+    }
+    fn set(&mut self, name: Identifier, value: RuntimeValue) -> Result<(), RuntimeError> {
+        self.current_frame_mut().set(name, value)
+    }
+}
+
 #[allow(dead_code)]
 pub struct Interpreter {
     root: Module,
@@ -130,7 +225,7 @@ pub struct Interpreter {
     strings: Rc<Interner<StrLiteral>>,
     io_adaptor: Box<dyn IoAdaptor>,
     symbol_table: SymbolTable,
-    enviroment: Enviroment,
+    enviroment: Enviorments,
 }
 
 impl Interpreter {
@@ -142,7 +237,7 @@ impl Interpreter {
             root: ast.ast.root,
             idents: ast.ast.identifiers,
             symbol_table: ast.table,
-            enviroment: Enviroment::new(),
+            enviroment: Enviorments::new(),
             strings: ast.ast.strings,
             io_adaptor,
         }
@@ -168,34 +263,15 @@ impl Interpreter {
         let ident = self.idents.get_ident(name)?;
         self.lookup(ident)
     }
-
-    fn set(&mut self, name: Identifier, value: RuntimeValue) -> Result<(), RuntimeError> {
-        let mut entry = match self.enviroment.map.entry(name) {
-            Entry::Occupied(entry) => entry,
-            Entry::Vacant(_) => return Err(RuntimeError::Undefined(name)),
-        };
-
-        entry.insert(Some(value));
-        Ok(())
-    }
-
-    fn define(&mut self, name: Identifier) -> Result<&mut Option<RuntimeValue>, RuntimeError> {
-        match self.enviroment.map.entry(name) {
-            Entry::Occupied(_) => Err(RuntimeError::Shadowed(name)),
-            Entry::Vacant(entry) => Ok(entry.insert(None)),
-        }
-    }
-    fn def_set(&mut self, name: Identifier, value: RuntimeValue) -> Result<(), RuntimeError> {
-        *self.define(name)? = Some(value);
-        Ok(())
-    }
 }
 
 impl Evaluatable for Block {
     fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, RuntimeError> {
+        context.enviroment.scope_enter();
         for stmt in self.stmts() {
             stmt.evaluate(context)?
         }
+        context.enviroment.scope_exit();
         Ok(())
     }
 }
@@ -205,9 +281,9 @@ impl Evaluatable for Stmt {
             StmtKind::If(set) => set.evaluate(context)?,
             StmtKind::Block(block) => block.evaluate(context)?,
             StmtKind::VaribleDecl(decl) => {
-                eprintln!("{decl:?}");
                 let initalizer = decl.intializer.evaluate(context)?;
-                context.def_set(decl.name, initalizer)?;
+                context.enviroment.define(decl.name, decl.name_span)?;
+                context.enviroment.set(decl.name, initalizer)?;
             }
             StmtKind::Expr(expr) => {
                 expr.evaluate(context)?;
@@ -253,14 +329,7 @@ impl Evaluatable for Expr {
             ExprKind::String(text) => Ok(RuntimeValue::String(
                 context.strings.lookup(*text).to_string(),
             )),
-            ExprKind::Variable(name) => Ok(context
-                .enviroment
-                .map
-                .get(&name)
-                .ok_or(RuntimeError::Undeclared(*name))? // not in enviorment
-                .as_ref()
-                .ok_or(RuntimeError::Undefined(*name))? // varible in enviorment but not set
-                .clone()),
+            ExprKind::Variable(name) => context.enviroment.resolve(*name),
             ExprKind::FnCall(call) => call.evaluate(context),
             ExprKind::Binary(binary) => {
                 let lhs = (&*binary.lhs).evaluate(context)?;

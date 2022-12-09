@@ -18,14 +18,12 @@ fn main() {
     // file.read_to_string(&mut text).unwrap();
     let text = r#"
         fn main {
-            let condition = false;
-            let a = 5 * 1 + 2 / 2;  
-            if condition {
-                print(condition);
-                print("hello");
-            } else {
-                print(condition, "hej hej");
-            } 
+            let a = "outer";
+            { 
+                let a = "inner";
+                print(a);
+            }
+            print(a);
         }
         "#;
 
