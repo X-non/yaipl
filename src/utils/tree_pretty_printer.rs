@@ -68,7 +68,7 @@ impl AstPrinter {
     pub fn emit_located(&mut self, row: impl AsRef<str>, span: Span) {
         writeln!(
             self.rows,
-            "{}{}{}",
+            "{}{} [@ {}]",
             self.indent(),
             row.as_ref(),
             self.diagnostic_context.resolve_span(span)
@@ -113,17 +113,23 @@ impl<T: TreePrintable> TreePrintable for &T {
 impl TreePrintable for Expr {
     fn print(&self, printer: &mut AstPrinter) {
         match &self.kind {
-            ExprKind::Integer(val) => printer.emit(format!("Literal int `{val}`")),
-            ExprKind::Float(val) => printer.emit(format!("Literal float `{val}`")),
-            ExprKind::Bool(val) => printer.emit(format!("Literal bool `{val}`")),
-            ExprKind::String(val) => {
-                printer.emit(format!("Literal string `{:?}`", printer.resolve_str(*val)))
+            ExprKind::Integer(val) => {
+                printer.emit_located(format!("Literal int `{val}`"), self.span)
             }
-            ExprKind::Variable(val) => {
-                printer.emit(format!("Identifier `{}`", printer.resovle_ident(*val)))
+            ExprKind::Float(val) => {
+                printer.emit_located(format!("Literal float `{val}`"), self.span)
             }
+            ExprKind::Bool(val) => printer.emit_located(format!("Literal bool `{val}`"), self.span),
+            ExprKind::String(val) => printer.emit_located(
+                format!("Literal string `{:?}`", printer.resolve_str(*val)),
+                self.span,
+            ),
+            ExprKind::Variable(val) => printer.emit_located(
+                format!("Identifier `{}`", printer.resovle_ident(*val)),
+                self.span,
+            ),
             ExprKind::FnCall(fn_call) => {
-                printer.emit(format!("FnCall"));
+                printer.emit_located(format!("FnCall"), self.span);
 
                 printer.emit_labled("Callee", |printer| fn_call.callee.print(printer));
 
@@ -132,10 +138,10 @@ impl TreePrintable for Expr {
                 }
             }
             ExprKind::Binary(binary) => {
-                printer.emit("BinaryExpr ");
+                printer.emit_located("BinaryExpr ", self.span);
                 printer.emit_indented(|printer| {
                     binary.lhs.print(printer);
-                    printer.emit(format!("{}", binary.op));
+                    printer.emit_located(format!("{}", binary.op), binary.op_span);
                     binary.rhs.print(printer);
                 })
             }
@@ -184,7 +190,7 @@ impl TreePrintable for Stmt {
 }
 impl TreePrintable for Block {
     fn print(&self, printer: &mut AstPrinter) {
-        printer.emit("Block");
+        printer.emit_located("Block", self.span);
 
         if self.stmts().is_empty() {
             printer.emit_indented(|printer| printer.emit("/* No Block Body */"));
@@ -196,7 +202,10 @@ impl TreePrintable for Block {
 
 impl TreePrintable for VaribleDecl {
     fn print(&self, printer: &mut AstPrinter) {
-        printer.emit(format!("VarDecl of `{}`", printer.resovle_ident(self.name)));
+        printer.emit_located(
+            format!("VarDecl of `{}`", printer.resovle_ident(self.name)),
+            self.name_span,
+        );
         printer.emit_indented(|printer| {
             printer.emit_labled("Initalizer", |printer| self.intializer.print(printer))
         });
