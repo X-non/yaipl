@@ -1,16 +1,7 @@
-use clap::{Parser, Subcommand};
+use clap::Parser;
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
-pub struct CLIOptions {
-    #[arg(long)]
-    pub dump_ast: bool,
-
-    #[command(cubcommand)]
-    comman: Command,
-}
-
-#[derive(Subcommand)]
-pub enum Command {
-    Run { pub file: PathBuf },
+pub struct Args {
+    pub file: PathBuf,
 }
