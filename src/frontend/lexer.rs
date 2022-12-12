@@ -105,6 +105,13 @@ pub enum TokenKind {
     #[token("/")]
     Slash,
 
+    #[token("for")]
+    For,
+    #[token("while")]
+    While,
+    #[token("in")]
+    In,
+
     #[token("fn")]
     Func,
     #[token("true")]
