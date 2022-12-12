@@ -12,5 +12,5 @@ pub struct CLIOptions {
 
 #[derive(Subcommand)]
 pub enum Command {
-    Run { file: PathBuf },
+    Run { path: PathBuf },
 }
