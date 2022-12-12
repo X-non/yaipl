@@ -1,11 +1,10 @@
 use clap::Parser as CLIParser;
-use logos::source;
 use std::fs::File;
-use std::io::{Read, Seek};
-use std::path::{Path, PathBuf};
+use std::io::Read;
+use std::path::Path;
 use std::rc::Rc;
 
-use yaipl::cli::{self, CLIOptions, Command};
+use yaipl::cli::{CLIOptions, Command};
 use yaipl::evaluator;
 use yaipl::utils::diagnostics::{resolve_span_from_src, DiagnosticContext};
 
@@ -21,10 +20,11 @@ fn main() {
 }
 
 fn run(options: &CLIOptions, path: &Path) {
-    let source = read_file(path);
+    //FIXME: hmm mabye not leak the memory.
+    let source = &*Box::leak(read_file(path).into_boxed_str());
 
-    let diagnostics = Rc::new(DiagnosticContext::new(&source));
-    let mut parser = Parser::new(&source);
+    let diagnostics = Rc::new(DiagnosticContext::new(source));
+    let mut parser = Parser::new(source);
     let parse_root_module = parser.parse_root_module();
     let (idents, strings) = parser.into_interners();
 
