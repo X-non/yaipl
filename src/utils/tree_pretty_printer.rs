@@ -185,6 +185,15 @@ impl TreePrintable for Stmt {
             StmtKind::Block(block) => block.print(printer),
             StmtKind::VaribleDecl(var_decl) => var_decl.print(printer),
             StmtKind::Expr(expr) => printer.emit_labled("ExprStmt", |printer| expr.print(printer)),
+            StmtKind::WhileLoop(while_loop) => {
+                printer.emit_located("While", self.span);
+                printer.emit_indented(|printer| {
+                    printer.emit_labled("Condition", |printer| {
+                        while_loop.condition.print(printer);
+                    });
+                    while_loop.block.print(printer);
+                })
+            }
         }
     }
 }

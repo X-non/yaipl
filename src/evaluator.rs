@@ -14,7 +14,8 @@ use self::io_adaptor::{IoAdaptor, StdIOAdaptor};
 use crate::{
     frontend::{
         parser::ast::{
-            BinaryOp, Block, Expr, ExprKind, FnCall, IfBranch, IfBranchSet, Module, Stmt, StmtKind,
+            BinaryOp, Block, BlockWithCondition, Expr, ExprKind, FnCall, IfBranchSet, Module, Stmt,
+            StmtKind,
         },
         semantic_analysis::{AnnotatedAst, SymbolEntry, SymbolTable, Type},
         span::Span,
@@ -288,6 +289,14 @@ impl Evaluatable for Stmt {
             StmtKind::Expr(expr) => {
                 expr.evaluate(context)?;
             }
+            StmtKind::WhileLoop(while_loop) => loop {
+                let conditon = while_loop.condition.evaluate(context)?;
+                conditon.assert_type(Type::Bool)?;
+                if conditon == RuntimeValue::False {
+                    break;
+                }
+                while_loop.block.evaluate(context)?;
+            },
         }
         Ok(())
     }
@@ -307,7 +316,7 @@ impl Evaluatable for IfBranchSet {
     }
 }
 
-impl Evaluatable for IfBranch {
+impl Evaluatable for BlockWithCondition {
     fn evaluate(&self, context: &mut Interpreter) -> Result<(), RuntimeError> {
         let conditional = self.condition.evaluate(context)?;
         conditional.assert_type(Type::Bool)?;

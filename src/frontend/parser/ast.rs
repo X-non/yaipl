@@ -116,7 +116,7 @@ impl TryFrom<TokenKind> for BinaryOp {
 }
 
 #[derive(Debug, Clone)]
-pub struct IfBranch {
+pub struct BlockWithCondition {
     pub span: Span,
     pub condition: Expr,
     pub block: Block,
@@ -135,8 +135,8 @@ impl Block {
 
 #[derive(Debug, Clone)]
 pub struct IfBranchSet {
-    pub if_branch: IfBranch,
-    pub else_if_branches: Vec<IfBranch>,
+    pub if_branch: BlockWithCondition,
+    pub else_if_branches: Vec<BlockWithCondition>,
     pub else_block: Option<Block>,
 }
 
@@ -189,12 +189,17 @@ pub enum StmtKind {
     Block(Block),
     VaribleDecl(VaribleDecl),
     Expr(Expr),
+    WhileLoop(WhileLoop),
 }
-
+#[derive(Debug, Clone)]
+pub struct WhileLoop {
+    pub condition: Expr,
+    pub block: Block,
+}
 impl StmtKind {
     pub(crate) fn needs_semi_colon(&self) -> bool {
         match self {
-            StmtKind::If(_) | StmtKind::Block(_) => false,
+            StmtKind::If(_) | StmtKind::Block(_) | StmtKind::WhileLoop(_) => false,
             _ => true,
         }
     }

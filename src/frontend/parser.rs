@@ -9,8 +9,8 @@ use crate::utils::{
 };
 
 use self::ast::{
-    Block, Expr, ExprKind, FnArguments, FnCall, FnDecl, IfBranch, IfBranchSet, Item, ItemKind,
-    Module, Stmt, StmtKind, VaribleDecl,
+    Block, BlockWithCondition, Expr, ExprKind, FnArguments, FnCall, FnDecl, IfBranchSet, Item,
+    ItemKind, Module, Stmt, StmtKind, VaribleDecl, WhileLoop,
 };
 
 use super::{
@@ -149,10 +149,10 @@ impl<'src> Parser<'src> {
         })
     }
     /// parses the condition and the block of the branch
-    fn parse_if_branch(&mut self) -> ParseResult<IfBranch> {
+    fn parse_if_branch(&mut self) -> ParseResult<BlockWithCondition> {
         let condition = self.parse_expr()?;
         let block = self.parse_block(true)?;
-        Ok(IfBranch {
+        Ok(BlockWithCondition {
             span: condition.span.combine(block.span), //FIXME: Should probobly include the if or [else, if] tokens spans
             condition,
             block,
@@ -217,6 +217,11 @@ impl<'src> Parser<'src> {
             block.span = open_brace.span.combine(block.span);
             span = block.span;
             kind = StmtKind::Block(block);
+        } else if let Some(while_token) = self.eat_if(|token| token.kind == TokenKind::While) {
+            let condition = self.parse_expr()?;
+            let block = self.parse_block(true)?;
+            span = while_token.span.combine(block.span);
+            kind = StmtKind::WhileLoop(WhileLoop { condition, block });
         } else {
             let expr = self.parse_expr()?;
             span = expr.span;

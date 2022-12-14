@@ -32,15 +32,17 @@ fn run(options: &CLIOptions, path: &Path) {
         Ok(module) => {
             let ast = Ast::new(module, idents, strings).annotate();
 
-            println!(
-                "{}",
-                AstPrinter::from_node(
-                    &ast.ast,
-                    ast.ast.identifiers.clone(),
-                    ast.ast.strings.clone(),
-                    diagnostics.clone()
-                )
-            );
+            if options.dump_ast {
+                println!(
+                    "{}",
+                    AstPrinter::from_node(
+                        &ast.ast,
+                        ast.ast.identifiers.clone(),
+                        ast.ast.strings.clone(),
+                        diagnostics.clone()
+                    )
+                );
+            }
 
             println!("{:#?}", evaluator::evaluate(ast));
 
