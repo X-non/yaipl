@@ -24,11 +24,15 @@ pub struct Ast {
 }
 
 impl Ast {
-    pub fn new(root: Module, identifiers: Interner<Ident>, strings: Interner<StrLiteral>) -> Self {
+    pub fn new(
+        root: Module,
+        identifiers: Rc<Interner<Ident>>,
+        strings: Rc<Interner<StrLiteral>>,
+    ) -> Self {
         Self {
             root,
-            identifiers: Rc::new(identifiers),
-            strings: Rc::new(strings),
+            identifiers,
+            strings,
         }
     }
 }

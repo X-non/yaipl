@@ -9,7 +9,7 @@ use crate::utils::{
 };
 
 use self::ast::{
-    Block, BlockWithCondition, Expr, ExprKind, FnArguments, FnCall, FnDecl, IfBranchSet, Item,
+    Ast, Block, BlockWithCondition, Expr, ExprKind, FnArguments, FnCall, FnDecl, IfBranchSet, Item,
     ItemKind, Module, Stmt, StmtKind, VaribleDecl, WhileLoop,
 };
 
@@ -48,9 +48,6 @@ impl<'src> Parser<'src> {
             lexer: Lexer::new(src),
         }
     }
-    pub fn into_interners(self) -> (Interner<Ident>, Interner<StrLiteral>) {
-        self.lexer.into_interners()
-    }
 
     pub fn peek(&mut self) -> &Token {
         self.lexer
@@ -86,7 +83,12 @@ impl<'src> Parser<'src> {
         self.peek().is_eof()
     }
 
-    #[allow(dead_code)]
+    pub fn parse_file_ast(&mut self) -> ParseResult<Ast> {
+        let root = self.parse_module()?;
+        let (strings, identifiers) = self.lexer.clone_interners();
+        Ok(Ast::new(root, identifiers, strings))
+    }
+
     pub fn parse_root_module(&mut self) -> ParseResult<Module> {
         let module = self.parse_module()?;
         if !self.is_at_eof() {

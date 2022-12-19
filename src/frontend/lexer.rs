@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, rc::Rc};
 
 use logos::Logos;
 
@@ -26,8 +26,12 @@ impl Token {
         self.kind.is_eof()
     }
 }
-
+pub struct LexerState {
+    pub strings: Rc<Interner<StrLiteral>>,
+    pub identifiers: Rc<Interner<Ident>>,
+}
 struct InvalidEscapeSequence(usize, char);
+
 fn split_first_char(s: &str) -> Option<(char, &str)> {
     let mut chars = s.chars();
     chars.next().map(|c| (c, chars.as_str()))
@@ -44,7 +48,7 @@ fn handel_str_literal(
 
     let escaped = unescape_special_chars(content)?;
 
-    let interned = lexer.extras.1.intern(&escaped);
+    let interned = lexer.extras.strings.intern(&escaped);
 
     Ok(interned)
 }
@@ -77,7 +81,7 @@ fn unescape_special_chars(content: &str) -> Result<Cow<'_, str>, InvalidEscapeSe
     }
 }
 #[derive(Logos, Debug, PartialEq)]
-#[logos(extras = (Interner<Ident>, Interner<StrLiteral>))]
+#[logos(extras = LexerState)]
 pub enum TokenKind {
     #[token("let")]
     Let,
@@ -129,7 +133,7 @@ pub enum TokenKind {
     #[regex(r#""([^"\\]|\\[\s\S])*""#, handel_str_literal)]
     String(Interned<StrLiteral>),
 
-    #[regex(r"(_|[a-zA-Z])+(_|[a-z0-9])*", |lex| lex.extras.0.intern(lex.slice()))]
+    #[regex(r"(_|[a-zA-Z])+(_|[a-z0-9])*", |lex| lex.extras.identifiers.intern(lex.slice()))]
     Ident(Identifier),
 
     #[token("{")]
@@ -167,7 +171,13 @@ impl<'a> Lexer<'a> {
         Self {
             has_returned_eof: false,
             peek: None,
-            logos_lexer: TokenKind::lexer_with_extras(src, (Interner::new(), Interner::new())),
+            logos_lexer: TokenKind::lexer_with_extras(
+                src,
+                LexerState {
+                    identifiers: Rc::new(Interner::new()),
+                    strings: Rc::new(Interner::new()),
+                },
+            ),
         }
     }
     pub fn peek(&mut self) -> Option<&Token> {
@@ -177,8 +187,10 @@ impl<'a> Lexer<'a> {
         self.peek.as_ref()
     }
 
-    pub(crate) fn into_interners(self) -> (Interner<Ident>, Interner<StrLiteral>) {
-        self.logos_lexer.extras
+    pub fn clone_interners(&self) -> (Rc<Interner<StrLiteral>>, Rc<Interner<Ident>>) {
+        let state = &self.logos_lexer.extras;
+
+        (state.strings.clone(), state.identifiers.clone())
     }
 }
 

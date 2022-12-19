@@ -10,43 +10,35 @@ use crate::{
     },
 };
 
-pub fn run(options: &CLIOptions, path: &Path) -> Result<(), String> {
-    //FIXME: hmm mabye not leak the memory.
+// pub fn check(options: &CLIOptions, path: &Path) -> Result<(), ()> {}
+
+pub fn run(options: &CLIOptions, path: &Path) {
     let source = &*Box::leak(read_file(path).into_boxed_str());
 
+    //FIXME: hmm mabye not leak the memory.
     let diagnostics = Rc::new(DiagnosticContext::new(source));
-    let mut parser = Parser::new(source);
-    let parse_root_module = parser.parse_root_module();
-    let (idents, strings) = parser.into_interners();
 
-    match parse_root_module {
-        Ok(module) => {
-            let ast = Ast::new(module, idents, strings).annotate();
+    let ast = Parser::new(source).parse_file_ast();
 
-            if options.dump_ast {
-                println!(
-                    "{}",
-                    AstPrinter::from_node(
-                        &ast.ast,
-                        ast.ast.identifiers.clone(),
-                        ast.ast.strings.clone(),
-                        diagnostics.clone()
-                    )
-                );
-            }
+    let ast = match ast {
+        Ok(ast) => ast,
+        Err(err) => diagnostics.report_parse_error(err),
+    };
 
-            println!("{:#?}", evaluator::evaluate(ast));
-            Ok(())
-        }
-        Err(err) => match err {
-            parser::ParseError::UnexpectedToken(r) => Err(format!(
-                "UnexpectedToken: {:?} @ {:?}",
-                &source[r.into_src_range()],
-                resolve_span_from_src(&source, r)
-            )),
-            rest => Err(format!("{rest:?}")),
-        },
+    let ast = ast.annotate();
+    if options.dump_ast {
+        println!(
+            "{}",
+            AstPrinter::from_node(
+                &ast.ast,
+                ast.ast.identifiers.clone(),
+                ast.ast.strings.clone(),
+                diagnostics.clone()
+            )
+        );
     }
+
+    evaluator::evaluate(ast).unwrap();
 }
 
 fn read_file(path: &Path) -> String {

@@ -9,7 +9,7 @@ pub mod evaluator;
 pub mod frontend;
 pub mod utils;
 
-pub fn build_program(options: CLIOptions) -> Result<(), String> {
+pub fn build_program(options: CLIOptions) {
     match &options.command {
         cli::Command::Run { path } => build_program::run(&options, path),
     }

@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use crate::frontend::span::Span;
+use crate::frontend::{parser::ParseError, span::Span};
 
 pub struct DiagnosticContext<'src> {
     src: &'src str,
@@ -20,6 +20,16 @@ impl<'src> DiagnosticContext<'src> {
     pub fn resolve_span(&self, span: Span) -> SrcFileCoordinate {
         //FIXME: mabye use the cache
         resolve_span_from_src(self.src, span)
+    }
+    pub fn report_parse_error(&self, err: ParseError) -> ! {
+        match err {
+            ParseError::UnexpectedToken(span) => panic!(
+                "UnexpectedToken: {:?} @ {:?}",
+                &self.src[span.into_src_range()],
+                resolve_span_from_src(self.src, span)
+            ),
+            rest => panic!("{rest:?}"),
+        }
     }
 }
 
