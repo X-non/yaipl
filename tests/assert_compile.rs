@@ -1,16 +1,24 @@
 use rayon::prelude::*;
 use std::{
-    fs::{self, DirEntry, File},
-    io::{self, Read},
+    any::Any,
+    env::current_dir,
+    fs::{self, DirEntry},
+    io::{self},
     ops::Range,
+    panic::catch_unwind,
     path::{Path, PathBuf},
-    str::FromStr,
 };
 
-use yaipl::frontend::parser::{ast::Ast, ParseError, Parser};
-fn compile(src: &str) -> Result<Ast, ParseError> {
-    let mut parser = Parser::new(src);
-    Ok(parser.parse_file_ast()?)
+use yaipl::{build_program, cli::CLIOptions};
+
+fn try_compile(full_path: PathBuf) -> Result<(), Box<dyn Any + Send>> {
+    catch_unwind(|| {
+        build_program(&CLIOptions {
+            dump_ast: false,
+            command: yaipl::cli::Command::Check { path: full_path },
+        })
+    })
+    .map(|_| ())
 }
 fn rows_contained(src: &str, range: Range<usize>) -> (&str, Range<usize>) {
     let start = src[..range.start].rfind('\n').unwrap_or(0);
@@ -20,7 +28,8 @@ fn rows_contained(src: &str, range: Range<usize>) -> (&str, Range<usize>) {
 }
 
 fn test_folder(subfolder: &Path) -> io::Result<impl ParallelIterator<Item = io::Result<DirEntry>>> {
-    let mut path = PathBuf::from_str(r"C:\Users\caspe\repos\yaipl\tests\compile_tests").unwrap();
+    let mut path = current_dir().unwrap();
+    path.push(r"tests\compile_tests\");
     path.push(subfolder);
 
     fs::read_dir(path).map(|dir| {
@@ -32,54 +41,31 @@ fn test_folder(subfolder: &Path) -> io::Result<impl ParallelIterator<Item = io::
     })
 }
 
-fn compile_all_in(subfolder: &Path) -> Vec<(PathBuf, Result<Ast, ParseError>, String)> {
-    let files = test_folder(subfolder).unwrap().map(|a| {
-        let file_path = a.unwrap().path();
-        (file_path.clone(), File::open(file_path))
-    });
-    let compiled = files
-        .map(|(path, a)| {
-            let mut string = String::new();
-            a.expect(&path.to_str().unwrap())
-                .read_to_string(&mut string)
-                .unwrap();
-            (path, string)
+fn try_compile_all_in(subfolder: &Path) -> Vec<(String, Result<(), Box<dyn Any + Send>>)> {
+    test_folder(subfolder)
+        .unwrap()
+        .map(|dir| {
+            let file_path = dir.unwrap().path();
+            let name = file_path.to_string_lossy().to_string();
+            (name, try_compile(file_path))
         })
-        .collect::<Vec<_>>()
-        .into_iter()
-        .map(|(name, a)| (name, compile(&a), a));
-
-    compiled.collect()
+        .collect()
 }
 #[test]
 fn assert_compile_success() {
-    let files = compile_all_in(Path::new("compile_success"));
-
-    for (name, result, src) in files {
-        match result {
-            Err(err) => {
-                let extra_info = match &err {
-                    ParseError::UnexpectedToken(range) => {
-                        Some(rows_contained(&src, range.into_src_range()))
-                    }
-                    _ => None,
-                };
-                if let Some((text, range)) = extra_info {
-                    eprintln!("{}", range.start);
-                    eprintln!("{}", text);
-                    eprintln!("{}", range.end)
-                }
-                panic!("file: {name:?}, err: {err:#?}");
-            }
-            Ok(_) => {}
-        }
+    let compiled = try_compile_all_in(Path::new("compile_success"));
+    for (name, result) in compiled {
+        eprintln!("Start of {name}");
+        assert!(result.is_ok(), "{:?}", result);
+        eprintln!("End of {name}");
     }
 }
 #[test]
 fn assert_compile_faliure() {
-    let files = compile_all_in(Path::new("compile_failure"));
-
-    for (name, result, _) in files {
-        assert!(result.is_err(), "file: {:?}, value: {:#?}", name, result);
+    let compiled = try_compile_all_in(Path::new("compile_failure"));
+    for (name, result) in compiled {
+        eprintln!("Start of {name}");
+        assert!(result.is_err(), "{:?}", result);
+        eprintln!("End of {name}");
     }
 }
