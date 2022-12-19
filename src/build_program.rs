@@ -3,19 +3,12 @@ use std::{fs::File, io::Read, path::Path, rc::Rc};
 use crate::{
     cli::CLIOptions,
     evaluator,
-    frontend::parser::{self, ast::Ast, Parser},
-    utils::{
-        diagnostics::{resolve_span_from_src, DiagnosticContext},
-        tree_pretty_printer::AstPrinter,
-    },
+    frontend::{parser::Parser, semantic_analysis::AnnotatedAst},
+    utils::{diagnostics::DiagnosticContext, tree_pretty_printer::AstPrinter},
 };
-
-// pub fn check(options: &CLIOptions, path: &Path) -> Result<(), ()> {}
-
-pub fn run(options: &CLIOptions, path: &Path) {
-    let source = &*Box::leak(read_file(path).into_boxed_str());
-
+fn compile(options: &CLIOptions, path: &Path) -> AnnotatedAst {
     //FIXME: hmm mabye not leak the memory.
+    let source = &*Box::leak(read_file(path).into_boxed_str());
     let diagnostics = Rc::new(DiagnosticContext::new(source));
 
     let ast = Parser::new(source).parse_file_ast();
@@ -24,19 +17,27 @@ pub fn run(options: &CLIOptions, path: &Path) {
         Ok(ast) => ast,
         Err(err) => diagnostics.report_parse_error(err),
     };
-
-    let ast = ast.annotate();
     if options.dump_ast {
         println!(
             "{}",
             AstPrinter::from_node(
-                &ast.ast,
-                ast.ast.identifiers.clone(),
-                ast.ast.strings.clone(),
+                &ast,
+                ast.identifiers.clone(),
+                ast.strings.clone(),
                 diagnostics.clone()
             )
         );
     }
+
+    ast.annotate()
+}
+
+pub fn check(options: &CLIOptions, path: &Path) {
+    compile(options, path);
+}
+
+pub fn run(options: &CLIOptions, path: &Path) {
+    let ast = compile(options, path);
 
     evaluator::evaluate(ast).unwrap();
 }

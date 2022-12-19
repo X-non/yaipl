@@ -6,5 +6,5 @@ use yaipl;
 
 fn main() {
     let options = CLIOptions::parse();
-    yaipl::build_program(options)
+    yaipl::build_program(&options)
 }
