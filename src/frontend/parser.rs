@@ -13,7 +13,7 @@ use super::{
 };
 pub mod ast;
 mod binary_parsing;
-
+mod expression_parsing;
 pub type ParseResult<T> = Result<T, ParseError>;
 #[derive(Debug)]
 pub enum ParseError {
@@ -153,10 +153,6 @@ impl<'src> Parser<'src> {
             condition,
             block,
         })
-    }
-
-    fn parse_expr(&mut self) -> ParseResult<Expr> {
-        self.parse_add_or_sub()
     }
 
     fn parse_call_expr(&mut self) -> ParseResult<Expr> {
