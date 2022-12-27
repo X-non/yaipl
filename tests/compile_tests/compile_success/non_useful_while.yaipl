@@ -1,0 +1,7 @@
+fn main {
+    let cond = true;
+    while cond {
+        print("Once");
+        cond = false;
+    }
+}
