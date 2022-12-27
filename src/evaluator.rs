@@ -161,11 +161,6 @@ impl EnviormentFrame {
             })),
         }
     }
-    fn set(&mut self, name: Identifier, value: RuntimeValue) -> Result<(), RuntimeError> {
-        let a = self.get_mut(name).ok_or(RuntimeError::Undeclared(name))?;
-        a.assign(value);
-        Ok(())
-    }
 }
 struct Enviorments {
     global: EnviormentFrame,
