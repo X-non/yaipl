@@ -39,6 +39,7 @@ pub enum RuntimeError {
     Shadowed(Interned<Ident>),
     Undeclared(Interned<Ident>),
     CantCall(Expr),
+    CantAssign(Expr),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -199,7 +200,7 @@ impl Enviorments {
     fn current_frame(&self) -> &EnviormentFrame {
         self.stack.last().unwrap_or(&self.global)
     }
-    fn resolve(&self, name: Identifier) -> Result<RuntimeValue, RuntimeError> {
+    fn get(&self, name: Identifier) -> Result<RuntimeValue, RuntimeError> {
         self.resolve_iter()
             .find_map(|frame| frame.get(name))
             .ok_or(RuntimeError::Undeclared(name))
@@ -214,8 +215,16 @@ impl Enviorments {
             .ok_or(RuntimeError::Shadowed(name))?;
         Ok(())
     }
+    fn resolve_mut(&mut self, name: Identifier) -> Option<&mut Variable> {
+        self.resolve_iter_mut()
+            .find_map(|frame| frame.get_mut(name))
+    }
     fn set(&mut self, name: Identifier, value: RuntimeValue) -> Result<(), RuntimeError> {
-        self.current_frame_mut().set(name, value)
+        self.resolve_mut(name)
+            .ok_or(RuntimeError::Undeclared(name))?
+            .assign(value);
+
+        Ok(())
     }
 }
 
@@ -226,7 +235,7 @@ pub struct Interpreter {
     strings: Rc<Interner<StrLiteral>>,
     io_adaptor: Box<dyn IoAdaptor>,
     symbol_table: SymbolTable,
-    enviroment: Enviorments,
+    enviroments: Enviorments,
 }
 
 impl Interpreter {
@@ -238,7 +247,7 @@ impl Interpreter {
             root: ast.ast.root,
             idents: ast.ast.identifiers,
             symbol_table: ast.table,
-            enviroment: Enviorments::new(),
+            enviroments: Enviorments::new(),
             strings: ast.ast.strings,
             io_adaptor,
         }
@@ -268,11 +277,11 @@ impl Interpreter {
 
 impl Evaluatable for Block {
     fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, RuntimeError> {
-        context.enviroment.scope_enter();
+        context.enviroments.scope_enter();
         for stmt in self.stmts() {
             stmt.evaluate(context)?
         }
-        context.enviroment.scope_exit();
+        context.enviroments.scope_exit();
         Ok(())
     }
 }
@@ -283,8 +292,8 @@ impl Evaluatable for Stmt {
             StmtKind::Block(block) => block.evaluate(context)?,
             StmtKind::VaribleDecl(decl) => {
                 let initalizer = decl.intializer.evaluate(context)?;
-                context.enviroment.define(decl.name, decl.name_span)?;
-                context.enviroment.set(decl.name, initalizer)?;
+                context.enviroments.define(decl.name, decl.name_span)?;
+                context.enviroments.set(decl.name, initalizer)?;
             }
             StmtKind::Expr(expr) => {
                 expr.evaluate(context)?;
@@ -297,7 +306,13 @@ impl Evaluatable for Stmt {
                 }
                 while_loop.block.evaluate(context)?;
             },
-            StmtKind::Assignment(_) => todo!(),
+            StmtKind::Assignment(assignment) => {
+                let ExprKind::Variable(name) = assignment.assignee.kind  else {
+                    return Err(RuntimeError::CantAssign(assignment.assignee.clone()));
+                };
+                let value = assignment.rhs.evaluate(context)?;
+                context.enviroments.set(name, value)?;
+            }
         }
         Ok(())
     }
@@ -339,7 +354,7 @@ impl Evaluatable for Expr {
             ExprKind::String(text) => Ok(RuntimeValue::String(
                 context.strings.lookup(*text).to_string(),
             )),
-            ExprKind::Variable(name) => context.enviroment.resolve(*name),
+            ExprKind::Variable(name) => context.enviroments.get(*name),
             ExprKind::FnCall(call) => call.evaluate(context),
             ExprKind::Binary(binary) => {
                 let lhs = (&*binary.lhs).evaluate(context)?;
