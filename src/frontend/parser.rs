@@ -1,12 +1,6 @@
 use std::fmt::Debug;
 
-use crate::utils::{
-    interner::{
-        branded::{Ident, StrLiteral},
-        Interner,
-    },
-    smallvec::SmallVec,
-};
+use crate::utils::smallvec::SmallVec;
 
 use self::ast::{
     Assignment, Ast, Block, BlockWithCondition, Expr, ExprKind, FnArguments, FnCall, FnDecl,
@@ -162,7 +156,7 @@ impl<'src> Parser<'src> {
     }
 
     fn parse_expr(&mut self) -> ParseResult<Expr> {
-        self.parse_term()
+        self.parse_add_or_sub()
     }
 
     fn parse_call_expr(&mut self) -> ParseResult<Expr> {

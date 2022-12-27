@@ -34,18 +34,19 @@ impl<'src> Parser<'src> {
         }
         Ok(workning_expr)
     }
-    pub fn parse_term(&mut self) -> ParseResult<Expr> {
+    pub fn parse_add_or_sub(&mut self) -> ParseResult<Expr> {
         self.parse_binary(
             |token| matches!(token.kind, TokenKind::Plus | TokenKind::Minus),
-            Self::parse_factor,
+            Self::parse_mul_or_div,
         )
     }
-    pub fn parse_factor(&mut self) -> ParseResult<Expr> {
+    pub fn parse_mul_or_div(&mut self) -> ParseResult<Expr> {
         self.parse_binary(
             |token| matches!(token.kind, TokenKind::Star | TokenKind::Slash),
             Self::parse_unary,
         )
     }
+
     fn parse_unary(&mut self) -> ParseResult<Expr> {
         if let Some(unary_token) = self.eat_if(|token| token.kind == TokenKind::Minus) {
             let content = self.parse_unary()?;
