@@ -194,6 +194,13 @@ impl TreePrintable for Stmt {
                     while_loop.block.print(printer);
                 })
             }
+            StmtKind::Assignment(assinment) => {
+                printer.emit_located("Assignment", self.span);
+                printer.emit_indented(|printer| {
+                    printer.emit_labled("Assignee", |printer| assinment.assignee.print(printer));
+                    printer.emit_labled("Rhs", |printer| assinment.rhs.print(printer));
+                });
+            }
         }
     }
 }

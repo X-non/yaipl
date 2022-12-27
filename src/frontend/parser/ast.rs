@@ -61,6 +61,12 @@ pub struct Expr {
 }
 
 #[derive(Debug, Clone)]
+pub struct Assignment {
+    pub assignee: Expr,
+    pub rhs: Expr,
+}
+
+#[derive(Debug, Clone)]
 pub enum ExprKind {
     Integer(u64),
     Float(f64),
@@ -192,6 +198,7 @@ pub enum StmtKind {
     If(IfBranchSet),
     Block(Block),
     VaribleDecl(VaribleDecl),
+    Assignment(Box<Assignment>),
     Expr(Expr),
     WhileLoop(WhileLoop),
 }

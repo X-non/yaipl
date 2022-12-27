@@ -9,8 +9,8 @@ use crate::utils::{
 };
 
 use self::ast::{
-    Ast, Block, BlockWithCondition, Expr, ExprKind, FnArguments, FnCall, FnDecl, IfBranchSet, Item,
-    ItemKind, Module, Stmt, StmtKind, VaribleDecl, WhileLoop,
+    Assignment, Ast, Block, BlockWithCondition, Expr, ExprKind, FnArguments, FnCall, FnDecl,
+    IfBranchSet, Item, ItemKind, Module, Stmt, StmtKind, VaribleDecl, WhileLoop,
 };
 
 use super::{
@@ -226,8 +226,21 @@ impl<'src> Parser<'src> {
             kind = StmtKind::WhileLoop(WhileLoop { condition, block });
         } else {
             let expr = self.parse_expr()?;
-            span = expr.span;
-            kind = StmtKind::Expr(expr);
+
+            if self
+                .eat_if(|token| token.kind == TokenKind::Equal)
+                .is_some()
+            {
+                let rhs = self.parse_expr()?;
+                span = expr.span.combine(rhs.span);
+                kind = StmtKind::Assignment(Box::new(Assignment {
+                    assignee: expr,
+                    rhs,
+                }))
+            } else {
+                span = expr.span;
+                kind = StmtKind::Expr(expr);
+            }
         };
 
         let semi_colon = self.eat_if(|tok| tok.kind == TokenKind::SemiColon);

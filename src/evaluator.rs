@@ -297,6 +297,7 @@ impl Evaluatable for Stmt {
                 }
                 while_loop.block.evaluate(context)?;
             },
+            StmtKind::Assignment(_) => todo!(),
         }
         Ok(())
     }
