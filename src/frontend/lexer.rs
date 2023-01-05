@@ -25,6 +25,9 @@ impl Token {
     pub fn is_eof(&self) -> bool {
         self.kind.is_eof()
     }
+    pub fn is_literal(&self) -> bool {
+        self.kind.is_literal()
+    }
 }
 pub struct LexerState {
     pub strings: Rc<Interner<StrLiteral>>,
@@ -163,6 +166,17 @@ impl TokenKind {
     #[must_use]
     pub fn is_eof(&self) -> bool {
         matches!(self, Self::EOF)
+    }
+    pub fn is_literal(&self) -> bool {
+        matches!(
+            self,
+            TokenKind::True
+                | TokenKind::False
+                | TokenKind::Integer(_)
+                | TokenKind::Float(_)
+                | TokenKind::String(_)
+                | TokenKind::Ident(_)
+        )
     }
 }
 

@@ -34,6 +34,7 @@ impl<'src> Parser<'src> {
         }
         Ok(workning_expr)
     }
+
     pub fn parse_add_or_sub(&mut self) -> ParseResult<Expr> {
         self.parse_binary(
             |token| matches!(token.kind, TokenKind::Plus | TokenKind::Minus),

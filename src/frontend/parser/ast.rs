@@ -124,6 +124,20 @@ impl TryFrom<TokenKind> for BinaryOp {
         Ok(op)
     }
 }
+impl TryFrom<&TokenKind> for BinaryOp {
+    type Error = ();
+
+    fn try_from(value: &TokenKind) -> Result<Self, Self::Error> {
+        let op = match value {
+            TokenKind::Plus => Self::Add,
+            TokenKind::Minus => Self::Sub,
+            TokenKind::Star => Self::Mul,
+            TokenKind::Slash => Self::Div,
+            _ => return Err(()),
+        };
+        Ok(op)
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct BlockWithCondition {
