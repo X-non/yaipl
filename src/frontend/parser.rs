@@ -171,7 +171,7 @@ impl<'src> Parser<'src> {
 
                 else_if_branches.push(else_if_branch);
             } else {
-                else_block = Some(self.parse_block(true)?);
+                else_block = Some(self.parse_block(None)?);
                 eprintln!("Else Block Done");
                 break;
             }
@@ -186,7 +186,7 @@ impl<'src> Parser<'src> {
     /// parses the condition and the block of the branch
     fn parse_if_branch(&mut self) -> ParseResult<BlockWithCondition> {
         let condition = self.parse_expr()?;
-        let block = self.parse_block(true)?;
+        let block = self.parse_block(None)?;
         Ok(BlockWithCondition {
             span: condition.span.combine(block.span), //FIXME: Should probobly include the if or [else, if] tokens spans
             condition,
@@ -244,13 +244,12 @@ impl<'src> Parser<'src> {
             span = let_token.span.combine(varible_decl.intializer.span);
             kind = StmtKind::VaribleDecl(varible_decl);
         } else if let Some(open_brace) = self.eat_if(|token| token.kind == TokenKind::OpenBrace) {
-            let mut block = self.parse_block(false)?;
-            block.span = open_brace.span.combine(block.span);
+            let block = self.parse_block(Some(open_brace))?;
             span = block.span;
             kind = StmtKind::Block(block);
         } else if let Some(while_token) = self.eat_if(|token| token.kind == TokenKind::While) {
             let condition = self.parse_expr()?;
-            let block = self.parse_block(true)?;
+            let block = self.parse_block(None)?;
             span = while_token.span.combine(block.span);
             kind = StmtKind::WhileLoop(WhileLoop { condition, block });
         } else {
@@ -286,15 +285,17 @@ impl<'src> Parser<'src> {
         Ok(Stmt { kind, span })
     }
 
-    // Fixme self.parse_block should probobly take something like Option<Token> and fix its own span
-    fn parse_block(&mut self, consume_open_brace: bool) -> ParseResult<Block> {
-        if consume_open_brace {
-            self.eat_if(|token| token.kind == TokenKind::OpenBrace)
+    fn parse_block(&mut self, consumed_open_brace: Option<Token>) -> ParseResult<Block> {
+        let open_brace = match consumed_open_brace {
+            Some(open_brace) => open_brace,
+            None => self
+                .eat_if(|token| token.kind == TokenKind::OpenBrace)
                 .ok_or(
                     ParseErrorKind::Expected(Box::new(TokenKind::OpenBrace))
                         .with_span(self.peek().span),
-                )?;
-        }
+                )?,
+        };
+
         let mut stmts = Vec::new();
 
         let closed_brace = loop {
@@ -305,11 +306,7 @@ impl<'src> Parser<'src> {
             stmts.push(self.parse_stmt()?);
         };
 
-        let span = if let Some(stmt) = stmts.first() {
-            stmt.span.combine(closed_brace.span)
-        } else {
-            todo!("actually pass the open brace")
-        };
+        let span = open_brace.span.combine(closed_brace.span);
 
         Ok(Block { stmts, span })
     }
@@ -339,7 +336,7 @@ impl<'src> Parser<'src> {
         })?;
 
         let name = name;
-        let block = self.parse_block(true)?;
+        let block = self.parse_block(None)?;
 
         Ok(FnDecl {
             name,
