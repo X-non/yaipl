@@ -97,16 +97,39 @@ pub enum BinaryOp {
     Sub,
     Mul,
     Div,
+
+    And,
+    Or,
+    Xor,
+
+    Equals,
+
+    LessThan,
+    LessThanOrEqual,
+
+    GreaterThan,
+    GreaterThanOrEqual,
 }
 
 impl std::fmt::Display for BinaryOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            BinaryOp::Add => write!(f, "+"),
-            BinaryOp::Sub => write!(f, "-"),
-            BinaryOp::Mul => write!(f, "*"),
-            BinaryOp::Div => write!(f, "/"),
-        }
+        let symbol = match self {
+            BinaryOp::Add => "+",
+            BinaryOp::Sub => "-",
+            BinaryOp::Mul => "*",
+            BinaryOp::Div => "/",
+
+            BinaryOp::And => "and",
+            BinaryOp::Or => "or",
+            BinaryOp::Xor => "xor",
+            BinaryOp::Equals => "==",
+            BinaryOp::LessThan => "<",
+            BinaryOp::LessThanOrEqual => "<=",
+            BinaryOp::GreaterThan => ">",
+            BinaryOp::GreaterThanOrEqual => ">=",
+        };
+
+        write!(f, "{symbol}")
     }
 }
 
@@ -119,6 +142,14 @@ impl TryFrom<TokenKind> for BinaryOp {
             TokenKind::Minus => Self::Sub,
             TokenKind::Star => Self::Mul,
             TokenKind::Slash => Self::Div,
+            TokenKind::And => Self::And,
+            TokenKind::Or => Self::Or,
+            TokenKind::Xor => Self::Xor,
+            TokenKind::DoubleEquals => Self::Equals,
+            TokenKind::LessThan => Self::LessThan,
+            TokenKind::LessThanOrEqual => Self::LessThanOrEqual,
+            TokenKind::GreaterThan => Self::GreaterThan,
+            TokenKind::GreaterThanOrEqual => Self::GreaterThanOrEqual,
             _ => return Err(()),
         };
         Ok(op)

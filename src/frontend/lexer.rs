@@ -113,6 +113,24 @@ pub enum TokenKind {
     #[token("/")]
     Slash,
 
+    #[token("and")]
+    And,
+    #[token("or")]
+    Or,
+    #[token("xor")]
+    Xor,
+
+    #[token("==")]
+    DoubleEquals,
+    #[token("<")]
+    LessThan,
+    #[token("<=")]
+    LessThanOrEqual,
+    #[token(">")]
+    GreaterThan,
+    #[token(">=")]
+    GreaterThanOrEqual,
+
     #[token("for")]
     For,
     #[token("while")]
