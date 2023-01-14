@@ -7,6 +7,7 @@ use crate::frontend::parser::ast::{
 use crate::frontend::span::Span;
 use std::fmt::Write;
 
+use super::diagnostics::FileCoordinate;
 use super::{
     diagnostics::DiagnosticContext,
     interner::{
@@ -68,9 +69,10 @@ impl AstPrinter {
     pub fn emit_located(&mut self, row: impl AsRef<str>, span: Span) {
         writeln!(
             self.rows,
-            "{}{} [@ {}]",
+            "{}{} [@ {}{}]",
             self.indent(),
             row.as_ref(),
+            self.diagnostic_context.filepath().display(),
             self.diagnostic_context.resolve_span(span)
         )
         .unwrap();
