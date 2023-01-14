@@ -1,4 +1,4 @@
-fn main {
+func main {
     while true {
         print("Forever");
     }

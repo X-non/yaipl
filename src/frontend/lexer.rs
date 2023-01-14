@@ -120,7 +120,7 @@ pub enum TokenKind {
     #[token("in")]
     In,
 
-    #[token("fn")]
+    #[token("func")]
     Func,
     #[token("true")]
     True,
