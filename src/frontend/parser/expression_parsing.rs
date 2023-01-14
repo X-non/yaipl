@@ -35,7 +35,7 @@ fn infix_binding_power(op: BinaryOp) -> (BindingPower, BindingPower) {
 }
 fn postfix_binding_power(postfix: &Token) -> Option<BindingPower> {
     let bp = match &postfix.kind {
-        TokenKind::LeftParen => bp(7),
+        TokenKind::OpenParen => bp(7),
         _ => return None,
     };
     Some(bp)
@@ -110,7 +110,7 @@ impl<'src> Parser<'src> {
                 }
                 let postfix = self.eat();
                 match postfix.kind {
-                    TokenKind::LeftParen => {
+                    TokenKind::OpenParen => {
                         let (argumant_span, arguments) = self.parse_argument_list()?;
                         lhs = Expr {
                             span: lhs.span.combine(argumant_span),

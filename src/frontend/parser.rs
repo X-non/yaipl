@@ -197,7 +197,7 @@ impl<'src> Parser<'src> {
     fn parse_call_expr(&mut self) -> ParseResult<Expr> {
         let mut expr = self.parse_primary()?;
         while self
-            .eat_if(|token| token.kind == TokenKind::LeftParen)
+            .eat_if(|token| token.kind == TokenKind::OpenParen)
             .is_some()
         {
             let (right_paren, arguments) = self.parse_argument_list()?;
@@ -354,14 +354,14 @@ impl<'src> Parser<'src> {
         let mut argument_exprs = SmallVec::new();
 
         let right_paren = loop {
-            if let Some(right_paren) = self.eat_if(|token| token.kind == TokenKind::RightParen) {
+            if let Some(right_paren) = self.eat_if(|token| token.kind == TokenKind::ClosedParen) {
                 break right_paren;
             }
 
             argument_exprs.push(self.parse_expr()?);
             last_consumed_comma = self.eat_if(|token| token.kind == TokenKind::Comma);
 
-            if let Some(right_paren) = self.eat_if(|token| token.kind == TokenKind::RightParen) {
+            if let Some(right_paren) = self.eat_if(|token| token.kind == TokenKind::ClosedParen) {
                 break right_paren;
             }
         };
@@ -381,7 +381,7 @@ impl<'src> Parser<'src> {
     fn peek_postfix_op(&mut self) -> Option<&Token> {
         let token = self.peek();
         match &token.kind {
-            TokenKind::LeftParen => Some(token),
+            TokenKind::OpenParen => Some(token),
             _ => None,
         }
     }

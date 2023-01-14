@@ -147,10 +147,10 @@ pub enum TokenKind {
     ClosedBrace,
 
     #[token("(")]
-    LeftParen,
+    OpenParen,
 
     #[token(")")]
-    RightParen,
+    ClosedParen,
 
     EOF,
 
