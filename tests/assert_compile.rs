@@ -2,6 +2,7 @@ use rayon::prelude::*;
 use std::{
     any::Any,
     env::current_dir,
+    fmt::Debug,
     fs::{self, DirEntry},
     io::{self},
     ops::Range,
@@ -9,16 +10,21 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use yaipl::{build_program, cli::CLIOptions};
+use yaipl::{
+    build_program,
+    cli::{CLIOptions, DebugFlags},
+};
 
 fn try_compile(full_path: PathBuf) -> Result<(), Box<dyn Any + Send>> {
     catch_unwind(|| {
         build_program(&CLIOptions {
-            dump_ast: false,
+            flags: DebugFlags {
+                dump_ast: false,
+                dump_tokens: false,
+            },
             command: yaipl::cli::Command::Check { path: full_path },
         })
     })
-    .map(|_| ())
 }
 fn rows_contained(src: &str, range: Range<usize>) -> (&str, Range<usize>) {
     let start = src[..range.start].rfind('\n').unwrap_or(0);
@@ -56,7 +62,12 @@ fn assert_compile_success() {
     let compiled = try_compile_all_in(Path::new("compile_success"));
     for (name, result) in compiled {
         eprintln!("Start of {name}");
-        assert!(result.is_ok(), "{:?}", result);
+        assert!(
+            result.is_ok(),
+            "{:?}",
+            result.as_ref().map_err(|err| err.downcast_ref::<String>())
+        );
+
         eprintln!("End of {name}");
     }
 }

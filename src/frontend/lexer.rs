@@ -10,12 +10,13 @@ use crate::utils::interner::{
 use super::span::Span;
 
 pub struct Lexer<'a> {
+    token_trace: Option<&'a mut Vec<Token>>,
     logos_lexer: logos::Lexer<'a, TokenKind>,
     peek: Option<Token>,
     has_returned_eof: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Token {
     pub kind: TokenKind,
     pub span: Span,
@@ -83,7 +84,7 @@ fn unescape_special_chars(content: &str) -> Result<Cow<'_, str>, InvalidEscapeSe
         Ok(Cow::Owned(escaped))
     }
 }
-#[derive(Logos, Debug, PartialEq)]
+#[derive(Logos, Debug, PartialEq, Clone)]
 #[logos(extras = LexerState)]
 pub enum TokenKind {
     #[token("let")]
@@ -192,8 +193,13 @@ impl<'a> Lexer<'a> {
                     strings: Rc::new(Interner::new()),
                 },
             ),
+            token_trace: None,
         }
     }
+    pub fn trace_tokens(&mut self, trace: &'a mut Vec<Token>) {
+        self.token_trace.replace(trace);
+    }
+
     pub fn peek(&mut self) -> Option<&Token> {
         if self.peek.is_none() {
             self.peek = self.next();
@@ -206,14 +212,20 @@ impl<'a> Lexer<'a> {
 
         (state.strings.clone(), state.identifiers.clone())
     }
+
+    fn trace_token(&mut self, token: &Token) {
+        if let Some(trace) = self.token_trace.as_mut() {
+            trace.push(token.clone())
+        }
+    }
 }
 
 impl<'a> Iterator for Lexer<'a> {
     type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(a) = self.peek.take() {
-            return Some(a);
+        if let Some(token) = self.peek.take() {
+            return Some(token);
         }
 
         let kind = if let Some(kind) = self.logos_lexer.next() {
@@ -225,10 +237,12 @@ impl<'a> Iterator for Lexer<'a> {
             return None;
         };
 
-        Some(Token {
+        let token = Token {
             kind,
             span: Span::try_from(self.logos_lexer.span()).unwrap(),
-        })
+        };
+        self.trace_token(&token);
+        Some(token)
     }
 }
 

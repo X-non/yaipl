@@ -1,17 +1,19 @@
-use std::cell::RefCell;
+use std::{cell::RefCell, path::Path, rc::Rc};
 
 use crate::frontend::{parser::ParseError, span::Span};
 
 pub struct DiagnosticContext<'src> {
     src: &'src str,
+    filepath: Rc<Path>,
 
     newlines_generated_until: u32,
     newlines: RefCell<Vec<u32>>,
 }
 
 impl<'src> DiagnosticContext<'src> {
-    pub fn new(src: &'src str) -> Self {
+    pub fn new(file: &Path, src: &'src str) -> Self {
         Self {
+            filepath: file.into(),
             src,
             newlines_generated_until: 0,
             newlines: Default::default(),
@@ -22,14 +24,21 @@ impl<'src> DiagnosticContext<'src> {
         resolve_span_from_src(self.src, span)
     }
     pub fn report_parse_error(&self, err: ParseError) -> ! {
-        match err {
-            ParseError::UnexpectedToken(span) => panic!(
-                "UnexpectedToken: {:?} @ {:?}",
-                &self.src[span.into_src_range()],
-                resolve_span_from_src(self.src, span)
-            ),
-            rest => panic!("{rest:?}"),
-        }
+        let location = match err.span() {
+            Some(span) => format!("{}", self.resolve_span(span)),
+            None => "*UNLOCATED*".to_string(),
+        };
+
+        panic!(
+            "\nParse Error @ {}{} \n {:?} \n",
+            self.filepath.to_string_lossy(),
+            location,
+            err
+        );
+    }
+
+    pub fn filepath(&self) -> &Path {
+        self.filepath.as_ref()
     }
 }
 
@@ -51,14 +60,15 @@ pub fn resolve_span(newlines: &[u32], span: Span) -> SrcFileCoordinate {
     let newline_offset = newlines[newlines_before];
 
     SrcFileCoordinate {
-        line: newlines_before as u32,
-        column: index - newline_offset,
+        line: newlines_before as u32 + 1,
+        column: index - newline_offset + 1,
     }
 }
 pub fn resolve_span_from_src(src: &str, span: Span) -> SrcFileCoordinate {
     let before = &src[..(span.byte_offset() as usize)];
-    let col = before.len() - before.rfind('\n').unwrap_or_default();
-    let line = before.chars().filter(|&c| c == '\n').count();
+    let line = before.chars().filter(|&c| c == '\n').count() + 1; // line number starts counting at 1
+    let fix_first_line = if line == 1 { 1 } else { 0 };
+    let col = before.len() - before.rfind('\n').unwrap_or_default() + fix_first_line;
 
     SrcFileCoordinate {
         line: line as u32,
