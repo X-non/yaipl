@@ -390,6 +390,7 @@ impl<'src> Parser<'src> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
     fn can_parse_while_loop() {
         let src = "while true {}";
         let stmt = Parser::new(src)
