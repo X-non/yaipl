@@ -103,6 +103,7 @@ pub enum BinaryOp {
     Xor,
 
     Equals,
+    NotEquals,
 
     LessThan,
     LessThanOrEqual,
@@ -123,6 +124,7 @@ impl std::fmt::Display for BinaryOp {
             BinaryOp::Or => "or",
             BinaryOp::Xor => "xor",
             BinaryOp::Equals => "==",
+            BinaryOp::NotEquals => "!=",
             BinaryOp::LessThan => "<",
             BinaryOp::LessThanOrEqual => "<=",
             BinaryOp::GreaterThan => ">",
@@ -146,6 +148,7 @@ impl TryFrom<TokenKind> for BinaryOp {
             TokenKind::Or => Self::Or,
             TokenKind::Xor => Self::Xor,
             TokenKind::DoubleEquals => Self::Equals,
+            TokenKind::BangEquals => Self::NotEquals,
             TokenKind::LessThan => Self::LessThan,
             TokenKind::LessThanOrEqual => Self::LessThanOrEqual,
             TokenKind::GreaterThan => Self::GreaterThan,

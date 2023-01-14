@@ -29,8 +29,19 @@ fn infix_bp(n: u8, associativity: Associative) -> (BindingPower, BindingPower) {
 
 fn infix_binding_power(op: BinaryOp) -> (BindingPower, BindingPower) {
     match op {
-        BinaryOp::Add | BinaryOp::Sub => infix_bp(1, Associative::Left),
-        BinaryOp::Mul | BinaryOp::Div => infix_bp(3, Associative::Left),
+        BinaryOp::Mul | BinaryOp::Div => infix_bp(17, Associative::Left),
+        BinaryOp::Add | BinaryOp::Sub => infix_bp(15, Associative::Left),
+
+        BinaryOp::Equals
+        | BinaryOp::NotEquals
+        | BinaryOp::LessThan
+        | BinaryOp::LessThanOrEqual
+        | BinaryOp::GreaterThan
+        | BinaryOp::GreaterThanOrEqual => infix_bp(11, Associative::Left),
+
+        BinaryOp::And => infix_bp(7, Associative::Left),
+        BinaryOp::Xor => infix_bp(5, Associative::Left),
+        BinaryOp::Or => infix_bp(3, Associative::Left),
     }
 }
 fn postfix_binding_power(postfix: &Token) -> Option<BindingPower> {

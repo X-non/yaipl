@@ -122,6 +122,8 @@ pub enum TokenKind {
 
     #[token("==")]
     DoubleEquals,
+    #[token("!=")]
+    BangEquals,
     #[token("<")]
     LessThan,
     #[token("<=")]
