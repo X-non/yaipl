@@ -4,8 +4,8 @@ use crate::frontend::{
 };
 
 use super::{
-    ast::{Binary, BinaryOp, Expr, ExprKind},
-    ParseError, ParseResult, Parser,
+    ast::{Binary, BinaryOp, Expr, ExprKind, FnCall},
+    ParseErrorKind, ParseResult, Parser,
 };
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct BindingPower(u8);
@@ -31,8 +31,9 @@ impl<'src> Parser<'src> {
         Some((token_kind.try_into().ok()?, token.span))
     }
 
-    fn consume_unary_op(&mut self) -> Option<Token> {
-        self.eat_if(|token| matches!(token.kind, TokenKind::Minus))
+    fn peek_unary_op(&mut self) -> Option<Token> {
+        // self.eat_if(|token| matches!(token.kind, TokenKind::Minus))
+        None
     }
 
     fn consume_literals(&mut self) -> Option<Expr> {
@@ -57,15 +58,11 @@ impl<'src> Parser<'src> {
         let mut lhs = if let Some(literal) = self.consume_literals() {
             literal
         } else {
-            return Err(ParseError::UnexpectedToken(self.peek().span));
+            return Err(ParseErrorKind::UnexpectedToken.with_span(self.peek().span));
         };
 
         loop {
-            if self.is_at_eof() {
-                break;
-            }
-
-            if let Some(op) = self.consume_unary_op() {
+            if let Some(op) = self.peek_unary_op() {
                 todo!()
             } else if let Some((op, op_span)) = self.peek_binary_op() {
                 let (lhs_bp, rhs_bp) = binary_binding_power(op);
@@ -85,12 +82,61 @@ impl<'src> Parser<'src> {
                         rhs: Box::new(rhs),
                     }),
                 };
-
-                todo!()
-            } else {
-                todo!()
-            };
+            } else if let Some(postfix) = self.peek_postfix_op() {
+                let bp = postfix_binding_power(postfix).expect("previous call should ensure that");
+                if bp < min_bp {
+                    break;
+                }
+                let postfix = self.eat();
+                match postfix.kind {
+                    TokenKind::LeftParen => {
+                        let (argumant_span, arguments) = self.parse_argument_list()?;
+                        lhs = Expr {
+                            span: lhs.span.combine(argumant_span),
+                            kind: ExprKind::FnCall(Box::new(FnCall {
+                                callee: lhs,
+                                arguments,
+                            })),
+                        }
+                    }
+                    _ => unimplemented!(),
+                };
+            }
+            break;
         }
-        todo!()
+        Ok(lhs)
+    }
+}
+
+fn postfix_binding_power(postfix: &Token) -> Option<BindingPower> {
+    let bp = match &postfix.kind {
+        TokenKind::LeftParen => bp(7),
+        _ => return None,
+    };
+    Some(bp)
+}
+
+#[cfg(test)]
+mod tests {
+
+    use crate::frontend::parser::Parser;
+
+    use super::*;
+
+    #[test]
+    fn parse_single_binary_expression() {
+        for op in ["+", "-", "*", "/"] {
+            let src = format!("a {op} b");
+            let mut parser = Parser::new(&src);
+            let expr = parser.parse_expr().expect("No parse error should occur");
+
+            match &expr.kind {
+                ExprKind::Binary(Binary { lhs, rhs, .. }) => match (&lhs.kind, &rhs.kind) {
+                    (ExprKind::Variable(_), ExprKind::Variable(_)) => {}
+                    _ => panic!("The lhs and rhs of the expr need to be varibles. {expr:?}"),
+                },
+                _ => panic!("Should be Binary:{expr:?}"),
+            }
+        }
     }
 }

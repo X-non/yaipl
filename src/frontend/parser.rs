@@ -15,20 +15,54 @@ pub mod ast;
 mod binary_parsing;
 mod expression_parsing;
 pub type ParseResult<T> = Result<T, ParseError>;
+
+pub struct ParseError {
+    pub kind: ParseErrorKind,
+    pub span: Option<Span>,
+    pub created_at: std::panic::Location<'static>,
+}
+
+impl Debug for ParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ParseError")
+            .field("kind", &self.kind)
+            .field("span", &self.span)
+            .field("created_at", &self.created_at.to_string())
+            .finish()
+    }
+}
+
 #[derive(Debug)]
-pub enum ParseError {
+pub enum ParseErrorKind {
     UnexpectedEOF,
-    UnexpectedToken(Span),
+    UnexpectedToken,
     Expected(Box<dyn 'static + Debug + Send>),
     WholeProgramNotParsed(Box<Module>),
     FnArgOnlyComma,
 }
 
-impl From<EOF> for ParseError {
-    fn from(_: EOF) -> Self {
-        Self::UnexpectedEOF
+impl ParseErrorKind {
+    #[track_caller]
+    pub fn with_span(self, span: Span) -> ParseError {
+        ParseError {
+            kind: self,
+            span: Some(span),
+            created_at: *std::panic::Location::caller(),
+        }
     }
 }
+
+impl ParseError {
+    pub fn span(&self) -> Option<Span> {
+        self.span
+    }
+}
+
+// impl From<EOF> for ParseError {
+//     fn from(_: EOF) -> Self {
+//         Self::UnexpectedEOF.
+//     }
+// }
 #[derive(Debug)]
 pub struct EOF;
 
@@ -41,6 +75,9 @@ impl<'src> Parser<'src> {
         Self {
             lexer: Lexer::new(src),
         }
+    }
+    pub fn trace_tokens(&mut self, trace: &'src mut Vec<Token>) {
+        self.lexer.trace_tokens(trace);
     }
 
     pub fn peek(&mut self) -> &Token {
@@ -86,7 +123,9 @@ impl<'src> Parser<'src> {
     pub fn parse_root_module(&mut self) -> ParseResult<Module> {
         let module = self.parse_module()?;
         if !self.is_at_eof() {
-            return Err(ParseError::WholeProgramNotParsed(Box::new(module)));
+            return Err(
+                ParseErrorKind::WholeProgramNotParsed(Box::new(module)).with_span(self.peek().span)
+            );
         }
 
         Ok(module)
@@ -110,7 +149,7 @@ impl<'src> Parser<'src> {
             };
             Ok(item)
         } else {
-            Err(ParseError::UnexpectedToken(self.peek().span))
+            Err(ParseErrorKind::UnexpectedToken.with_span(self.peek().span))
         }
     }
 
@@ -185,7 +224,7 @@ impl<'src> Parser<'src> {
                 TokenKind::Ident(ident) => ExprKind::Variable(ident),
                 TokenKind::True => ExprKind::Bool(true),
                 TokenKind::False => ExprKind::Bool(false),
-                _ => return Err(ParseError::UnexpectedToken(token.span)),
+                _ => return Err(ParseErrorKind::UnexpectedToken.with_span(token.span)),
             };
             Ok(Expr {
                 kind,
@@ -240,7 +279,8 @@ impl<'src> Parser<'src> {
         };
 
         if semi_colon.is_none() && kind.needs_semi_colon() {
-            return Err(ParseError::Expected(Box::new(TokenKind::SemiColon)));
+            return Err(ParseErrorKind::Expected(Box::new(TokenKind::SemiColon))
+                .with_span(self.peek().span));
         }
 
         Ok(Stmt { kind, span })
@@ -250,7 +290,10 @@ impl<'src> Parser<'src> {
     fn parse_block(&mut self, consume_open_brace: bool) -> ParseResult<Block> {
         if consume_open_brace {
             self.eat_if(|token| token.kind == TokenKind::OpenBrace)
-                .ok_or(ParseError::Expected(Box::new(TokenKind::OpenBrace)))?;
+                .ok_or(
+                    ParseErrorKind::Expected(Box::new(TokenKind::OpenBrace))
+                        .with_span(self.peek().span),
+                )?;
         }
         let mut stmts = Vec::new();
 
@@ -274,11 +317,12 @@ impl<'src> Parser<'src> {
     fn parse_varible_decl(&mut self) -> ParseResult<VaribleDecl> {
         let (name, name_span) = self.map_eat_if(|tok| match tok.kind {
             TokenKind::Ident(ident) => Ok((ident, tok.span)),
-            _ => Err(ParseError::UnexpectedToken(tok.span)),
+            _ => Err(ParseErrorKind::UnexpectedToken.with_span(tok.span)),
         })?;
 
-        self.eat_if(|token| token.kind == TokenKind::Equal)
-            .ok_or(ParseError::Expected(Box::new(TokenKind::Equal)))?;
+        self.eat_if(|token| token.kind == TokenKind::Equal).ok_or(
+            ParseErrorKind::Expected(Box::new(TokenKind::Equal)).with_span(self.peek().span),
+        )?;
 
         let intializer = self.parse_expr()?;
         Ok(VaribleDecl {
@@ -291,7 +335,7 @@ impl<'src> Parser<'src> {
     fn parse_fn_decl(&mut self) -> ParseResult<FnDecl> {
         let (name, name_span) = self.map_eat_if(|token| match token.kind {
             TokenKind::Ident(name) => Ok((name, token.span)),
-            _ => Err(ParseError::Expected(Box::new("Identifier"))),
+            _ => Err(ParseErrorKind::Expected(Box::new("Identifier")).with_span(token.span)),
         })?;
 
         let name = name;
@@ -306,7 +350,7 @@ impl<'src> Parser<'src> {
 
     fn parse_argument_list(&mut self) -> ParseResult<(Span, FnArguments)> {
         //exists to disallow <callee>(,);
-        let mut consumed_comma = false;
+        let mut last_consumed_comma = None;
         let mut argument_exprs = SmallVec::new();
 
         let right_paren = loop {
@@ -315,17 +359,15 @@ impl<'src> Parser<'src> {
             }
 
             argument_exprs.push(self.parse_expr()?);
-            consumed_comma = self
-                .eat_if(|token| token.kind == TokenKind::Comma)
-                .is_some();
+            last_consumed_comma = self.eat_if(|token| token.kind == TokenKind::Comma);
 
             if let Some(right_paren) = self.eat_if(|token| token.kind == TokenKind::RightParen) {
                 break right_paren;
             }
         };
 
-        if consumed_comma && argument_exprs.len() == 0 {
-            return Err(ParseError::FnArgOnlyComma);
+        if last_consumed_comma.is_some() && argument_exprs.len() == 0 {
+            return Err(ParseErrorKind::FnArgOnlyComma.with_span(last_consumed_comma.unwrap().span));
         }
         let fn_arguments = FnArguments {
             span: argument_exprs
@@ -334,5 +376,40 @@ impl<'src> Parser<'src> {
             arguments: argument_exprs,
         };
         Ok((right_paren.span, fn_arguments))
+    }
+
+    fn peek_postfix_op(&mut self) -> Option<&Token> {
+        let token = self.peek();
+        match &token.kind {
+            TokenKind::LeftParen => Some(token),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn can_parse_while_loop() {
+        let src = "while true {}";
+        let stmt = Parser::new(src)
+            .parse_stmt()
+            .expect("Should be valid while loop");
+        assert!(matches!(&stmt.kind, StmtKind::WhileLoop(_)))
+    }
+
+    #[test]
+    fn can_parse_expr_stmt() {
+        let stmt = Parser::new("a + b;")
+            .parse_stmt()
+            .expect("This should be a valid expr stmt");
+
+        assert!(matches!(
+            &stmt.kind,
+            StmtKind::Expr(Expr {
+                kind: ExprKind::Binary(_),
+                ..
+            })
+        ));
     }
 }
