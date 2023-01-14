@@ -9,20 +9,41 @@ use super::{
 };
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct BindingPower(u8);
-
+#[inline]
 fn bp(n: u8) -> BindingPower {
+    debug_assert!(n % 2 == 1, "{n} isin't odd");
     BindingPower(n)
 }
-fn binary_binding_power(op: BinaryOp) -> (BindingPower, BindingPower) {
-    match op {
-        BinaryOp::Add | BinaryOp::Sub => (bp(1), bp(2)),
-        BinaryOp::Mul | BinaryOp::Div => (bp(3), bp(4)),
+enum Associative {
+    Left,
+    Right,
+}
+fn infix_bp(n: u8, associativity: Associative) -> (BindingPower, BindingPower) {
+    debug_assert!(n % 2 == 1);
+    //TODO: add comment explaining why
+    match associativity {
+        Associative::Left => (BindingPower(n), BindingPower(n + 1)),
+        Associative::Right => (BindingPower(n + 1), BindingPower(n)),
     }
+}
+
+fn infix_binding_power(op: BinaryOp) -> (BindingPower, BindingPower) {
+    match op {
+        BinaryOp::Add | BinaryOp::Sub => infix_bp(1, Associative::Left),
+        BinaryOp::Mul | BinaryOp::Div => infix_bp(3, Associative::Left),
+    }
+}
+fn postfix_binding_power(postfix: &Token) -> Option<BindingPower> {
+    let bp = match &postfix.kind {
+        TokenKind::LeftParen => bp(7),
+        _ => return None,
+    };
+    Some(bp)
 }
 
 impl<'src> Parser<'src> {
     pub fn parse_expr(&mut self) -> ParseResult<Expr> {
-        self.parse_with_binding_power(bp(0))
+        self.parse_with_binding_power(BindingPower(0))
     }
 
     fn peek_binary_op(&mut self) -> Option<(BinaryOp, Span)> {
@@ -65,7 +86,7 @@ impl<'src> Parser<'src> {
             if let Some(op) = self.peek_unary_op() {
                 todo!()
             } else if let Some((op, op_span)) = self.peek_binary_op() {
-                let (lhs_bp, rhs_bp) = binary_binding_power(op);
+                let (lhs_bp, rhs_bp) = infix_binding_power(op);
 
                 if lhs_bp < min_bp {
                     break;
@@ -106,14 +127,6 @@ impl<'src> Parser<'src> {
         }
         Ok(lhs)
     }
-}
-
-fn postfix_binding_power(postfix: &Token) -> Option<BindingPower> {
-    let bp = match &postfix.kind {
-        TokenKind::LeftParen => bp(7),
-        _ => return None,
-    };
-    Some(bp)
 }
 
 #[cfg(test)]
