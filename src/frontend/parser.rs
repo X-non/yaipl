@@ -155,7 +155,6 @@ impl<'src> Parser<'src> {
 
     fn parse_if(&mut self) -> ParseResult<IfBranchSet> {
         let if_branch = self.parse_if_branch()?;
-        eprintln!("First IfBranch Done");
         let mut else_if_branches = Vec::new();
 
         let mut else_block = None;
@@ -167,12 +166,10 @@ impl<'src> Parser<'src> {
             //parsing else if
             if let Some(_) = self.eat_if(|token| token.kind == TokenKind::If) {
                 let else_if_branch = self.parse_if_branch()?;
-                eprintln!("Else if branch done");
 
                 else_if_branches.push(else_if_branch);
             } else {
                 else_block = Some(self.parse_block(None)?);
-                eprintln!("Else Block Done");
                 break;
             }
         }
