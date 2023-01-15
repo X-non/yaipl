@@ -135,10 +135,10 @@ impl std::fmt::Display for BinaryOp {
     }
 }
 
-impl TryFrom<TokenKind> for BinaryOp {
+impl TryFrom<&TokenKind> for BinaryOp {
     type Error = ();
 
-    fn try_from(value: TokenKind) -> Result<Self, Self::Error> {
+    fn try_from(value: &TokenKind) -> Result<Self, Self::Error> {
         let op = match value {
             TokenKind::Plus => Self::Add,
             TokenKind::Minus => Self::Sub,
@@ -158,18 +158,11 @@ impl TryFrom<TokenKind> for BinaryOp {
         Ok(op)
     }
 }
-impl TryFrom<&TokenKind> for BinaryOp {
+impl TryFrom<TokenKind> for BinaryOp {
     type Error = ();
 
-    fn try_from(value: &TokenKind) -> Result<Self, Self::Error> {
-        let op = match value {
-            TokenKind::Plus => Self::Add,
-            TokenKind::Minus => Self::Sub,
-            TokenKind::Star => Self::Mul,
-            TokenKind::Slash => Self::Div,
-            _ => return Err(()),
-        };
-        Ok(op)
+    fn try_from(value: TokenKind) -> Result<Self, Self::Error> {
+        (&value).try_into()
     }
 }
 
