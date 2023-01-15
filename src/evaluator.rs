@@ -417,6 +417,7 @@ impl Evaluatable for Expr {
                             ))
                         }
                     },
+                    _ => todo!(),
                 };
                 Ok(result)
             }
