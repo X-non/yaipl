@@ -143,7 +143,7 @@ impl TreePrintable for Expr {
                 printer.emit_located("BinaryExpr ", self.span);
                 printer.emit_indented(|printer| {
                     binary.lhs.print(printer);
-                    printer.emit_located(format!("{}", binary.op), binary.op_span);
+                    printer.emit_located(format!("Op: {}", binary.op), binary.op_span);
                     binary.rhs.print(printer);
                 })
             }
