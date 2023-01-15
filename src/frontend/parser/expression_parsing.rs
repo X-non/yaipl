@@ -46,7 +46,7 @@ fn infix_binding_power(op: BinaryOp) -> (BindingPower, BindingPower) {
 }
 fn postfix_binding_power(postfix: &Token) -> Option<BindingPower> {
     let bp = match &postfix.kind {
-        TokenKind::OpenParen => bp(7),
+        TokenKind::OpenParen => bp(77),
         _ => return None,
     };
     Some(bp)
@@ -97,6 +97,7 @@ impl<'src> Parser<'src> {
             if let Some(op) = self.peek_unary_op() {
                 todo!()
             } else if let Some((op, op_span)) = self.peek_binary_op() {
+                op;
                 let (lhs_bp, rhs_bp) = infix_binding_power(op);
 
                 if lhs_bp < min_bp {
@@ -133,8 +134,9 @@ impl<'src> Parser<'src> {
                     }
                     _ => unimplemented!(),
                 };
+            } else {
+                break;
             }
-            break;
         }
         Ok(lhs)
     }
