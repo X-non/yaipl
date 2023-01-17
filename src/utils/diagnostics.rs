@@ -1,8 +1,4 @@
-use std::{
-    cell::RefCell,
-    path::{Path, PathBuf},
-    rc::Rc,
-};
+use std::{cell::RefCell, path::Path, rc::Rc};
 
 use crate::frontend::{parser::ParseError, span::Span};
 

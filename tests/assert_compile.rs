@@ -2,9 +2,8 @@ use rayon::prelude::*;
 use std::{
     any::Any,
     env::current_dir,
-    fmt::Debug,
     fs::{self, DirEntry},
-    io::{self},
+    io,
     ops::Range,
     panic::catch_unwind,
     path::{Path, PathBuf},
