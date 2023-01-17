@@ -2,7 +2,6 @@ use rayon::prelude::*;
 use std::{
     any::Any,
     env::current_dir,
-    fmt::Debug,
     fs::{self, DirEntry},
     io::{self},
     ops::Range,

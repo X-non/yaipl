@@ -7,7 +7,6 @@ use crate::frontend::parser::ast::{
 use crate::frontend::span::Span;
 use std::fmt::Write;
 
-use super::diagnostics::FileCoordinate;
 use super::{
     diagnostics::DiagnosticContext,
     interner::{
