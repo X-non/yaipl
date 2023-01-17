@@ -14,8 +14,8 @@ use self::io_adaptor::{IoAdaptor, StdIOAdaptor};
 use crate::{
     frontend::{
         parser::ast::{
-            BinaryOp, Block, BlockWithCondition, Expr, ExprKind, FnCall, IfBranchSet, Module, Stmt,
-            StmtKind,
+            Binary, BinaryOp, Block, BlockWithCondition, Expr, ExprKind, FnCall, IfBranchSet,
+            Module, Stmt, StmtKind,
         },
         semantic_analysis::{AnnotatedAst, SymbolEntry, SymbolTable, Type},
         span::Span,
@@ -42,22 +42,29 @@ pub enum RuntimeError {
     CantAssign(Expr),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum RuntimeValue {
     Unit,
-    True,
-    False,
+    Bool(bool),
     String(String),
     Float(f64),
     Int(i64),
+}
+
+impl RuntimeValue {
+    const TRUE: Self = Self::Bool(true);
+    const FALSE: Self = Self::Bool(false);
+
+    pub fn same_type_as(&self, rhs: &Self) -> bool {
+        self.ty() == rhs.ty()
+    }
 }
 
 impl Display for RuntimeValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             RuntimeValue::Unit => write!(f, "Unit"),
-            RuntimeValue::True => write!(f, "true"),
-            RuntimeValue::False => write!(f, "false"),
+            RuntimeValue::Bool(val) => write!(f, "{}", val),
             RuntimeValue::String(text) => write!(f, "{}", text),
             RuntimeValue::Float(val) => write!(f, "{}", val),
             RuntimeValue::Int(val) => write!(f, "{}", val),
@@ -89,10 +96,7 @@ impl From<f64> for RuntimeValue {
 }
 impl From<bool> for RuntimeValue {
     fn from(value: bool) -> Self {
-        match value {
-            true => Self::True,
-            false => Self::False,
-        }
+        Self::Bool(value)
     }
 }
 
@@ -109,7 +113,7 @@ impl RuntimeValue {
     }
     const fn ty(&self) -> Type {
         match self {
-            RuntimeValue::True | RuntimeValue::False => Type::Bool,
+            RuntimeValue::Bool(_) => Type::Bool,
             RuntimeValue::String(_) => Type::String,
             RuntimeValue::Float(_) => Type::Float,
             RuntimeValue::Int(_) => Type::Int,
@@ -296,7 +300,7 @@ impl Evaluatable for Stmt {
             StmtKind::WhileLoop(while_loop) => loop {
                 let conditon = while_loop.condition.evaluate(context)?;
                 conditon.assert_type(Type::Bool)?;
-                if conditon == RuntimeValue::False {
+                if conditon == RuntimeValue::FALSE {
                     break;
                 }
                 while_loop.block.evaluate(context)?;
@@ -315,10 +319,14 @@ impl Evaluatable for Stmt {
 
 impl Evaluatable for IfBranchSet {
     fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, RuntimeError> {
-        self.if_branch.evaluate(context)?;
+        if let DidExecute::Yes = self.if_branch.evaluate(context)? {
+            return Ok(());
+        }
 
         for branch in &self.else_if_branches {
-            branch.evaluate(context)?;
+            if let DidExecute::Yes = branch.evaluate(context)? {
+                return Ok(());
+            }
         }
         if let Some(else_block) = &self.else_block {
             else_block.evaluate(context)?;
@@ -327,14 +335,21 @@ impl Evaluatable for IfBranchSet {
     }
 }
 
+pub enum DidExecute {
+    Yes,
+    No,
+}
 impl Evaluatable for BlockWithCondition {
-    fn evaluate(&self, context: &mut Interpreter) -> Result<(), RuntimeError> {
+    type Value = DidExecute;
+    fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, RuntimeError> {
         let conditional = self.condition.evaluate(context)?;
         conditional.assert_type(Type::Bool)?;
-        if conditional == RuntimeValue::True {
+        if conditional == RuntimeValue::TRUE {
             self.block.evaluate(context)?;
+            Ok(DidExecute::Yes)
+        } else {
+            Ok(DidExecute::No)
         }
-        Ok(())
     }
 }
 
@@ -351,80 +366,65 @@ impl Evaluatable for Expr {
             )),
             ExprKind::Variable(name) => context.enviroments.get(*name),
             ExprKind::FnCall(call) => call.evaluate(context),
-            ExprKind::Binary(binary) => {
-                let lhs = (&*binary.lhs).evaluate(context)?;
-                let rhs = (&*binary.rhs).evaluate(context)?;
-                let result = match binary.op {
-                    BinaryOp::Add => match (lhs, rhs) {
-                        (RuntimeValue::Int(lhs), RuntimeValue::Int(rhs)) => {
-                            RuntimeValue::Int(lhs + rhs)
-                        }
-                        (RuntimeValue::Float(lhs), RuntimeValue::Float(rhs)) => {
-                            RuntimeValue::Float(lhs + rhs)
-                        }
-                        (lhs, rhs) => {
-                            return Err(RuntimeError::BinaryTypeMissmatch(
-                                binary.op,
-                                lhs.ty(),
-                                rhs.ty(),
-                            ))
-                        }
-                    },
-                    BinaryOp::Sub => match (lhs, rhs) {
-                        (RuntimeValue::Int(lhs), RuntimeValue::Int(rhs)) => {
-                            RuntimeValue::Int(lhs + rhs)
-                        }
-                        (RuntimeValue::Float(lhs), RuntimeValue::Float(rhs)) => {
-                            RuntimeValue::Float(lhs + rhs)
-                        }
-                        (lhs, rhs) => {
-                            return Err(RuntimeError::BinaryTypeMissmatch(
-                                binary.op,
-                                lhs.ty(),
-                                rhs.ty(),
-                            ))
-                        }
-                    },
-                    BinaryOp::Mul => match (lhs, rhs) {
-                        (RuntimeValue::Int(lhs), RuntimeValue::Int(rhs)) => {
-                            RuntimeValue::Int(lhs + rhs)
-                        }
-                        (RuntimeValue::Float(lhs), RuntimeValue::Float(rhs)) => {
-                            RuntimeValue::Float(lhs + rhs)
-                        }
-                        (lhs, rhs) => {
-                            return Err(RuntimeError::BinaryTypeMissmatch(
-                                binary.op,
-                                lhs.ty(),
-                                rhs.ty(),
-                            ))
-                        }
-                    },
-                    BinaryOp::Div => match (lhs, rhs) {
-                        (RuntimeValue::Int(lhs), RuntimeValue::Int(rhs)) => {
-                            RuntimeValue::Int(lhs + rhs)
-                        }
-
-                        (RuntimeValue::Float(lhs), RuntimeValue::Float(rhs)) => {
-                            RuntimeValue::Float(lhs + rhs)
-                        }
-
-                        (lhs, rhs) => {
-                            return Err(RuntimeError::BinaryTypeMissmatch(
-                                binary.op,
-                                lhs.ty(),
-                                rhs.ty(),
-                            ))
-                        }
-                    },
-                    _ => todo!(),
-                };
-                Ok(result)
-            }
+            ExprKind::Binary(binary) => binary.evaluate(context),
             ExprKind::UnaryMinus(_) => todo!(),
         }
     }
 }
+
+macro_rules! delagate {
+    ($lhs:expr,$rhs:expr, $op:tt, $(RuntimeValue::$kind:ident),+) => {
+        match ($lhs, $rhs) {
+            $(
+                (RuntimeValue::$kind(lhs), RuntimeValue::$kind(rhs))=> Some(RuntimeValue::$kind(lhs $op rhs)),
+            )+
+            _ => None,
+        }
+    };
+}
+
+impl Evaluatable for Binary {
+    type Value = RuntimeValue;
+    fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, Self::Error> {
+        let lhs = (&*self.lhs).evaluate(context)?;
+        let rhs = (&*self.rhs).evaluate(context)?;
+        let lhs_ty = lhs.ty();
+        let rhs_ty = rhs.ty();
+
+        let result = match self.op {
+            BinaryOp::Add => delagate!(lhs, rhs, +, RuntimeValue::Int, RuntimeValue::Float),
+            BinaryOp::Sub => delagate!(lhs, rhs, -, RuntimeValue::Int, RuntimeValue::Float),
+            BinaryOp::Mul => delagate!(lhs, rhs, *, RuntimeValue::Int, RuntimeValue::Float),
+            BinaryOp::Div => delagate!(lhs, rhs, /, RuntimeValue::Int, RuntimeValue::Float),
+
+            BinaryOp::And => delagate!(lhs, rhs, &&, RuntimeValue::Bool),
+            BinaryOp::Or => delagate!(lhs, rhs, ||, RuntimeValue::Bool),
+            BinaryOp::Xor => delagate!(lhs, rhs, ^, RuntimeValue::Bool),
+
+            BinaryOp::Equals => lhs
+                .same_type_as(&rhs)
+                .then(move || RuntimeValue::Bool(lhs == rhs)),
+            BinaryOp::NotEquals => lhs
+                .same_type_as(&rhs)
+                .then(move || RuntimeValue::Bool(lhs != rhs)),
+
+            BinaryOp::LessThan => lhs
+                .same_type_as(&rhs)
+                .then(move || RuntimeValue::Bool(lhs < rhs)),
+            BinaryOp::LessThanOrEqual => lhs
+                .same_type_as(&rhs)
+                .then(move || RuntimeValue::Bool(lhs <= rhs)),
+            BinaryOp::GreaterThan => lhs
+                .same_type_as(&rhs)
+                .then(move || RuntimeValue::Bool(lhs > rhs)),
+            BinaryOp::GreaterThanOrEqual => lhs
+                .same_type_as(&rhs)
+                .then(move || RuntimeValue::Bool(lhs >= rhs)),
+        };
+        result.ok_or_else(|| RuntimeError::BinaryTypeMissmatch(self.op, lhs_ty, rhs_ty))
+    }
+}
+
 impl Evaluatable for FnCall {
     type Value = RuntimeValue;
 
