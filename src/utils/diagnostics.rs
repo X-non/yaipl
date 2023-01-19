@@ -29,12 +29,10 @@ impl<'src> DiagnosticContext<'src> {
             None => "*UNLOCATED*".to_string(),
         };
 
-        panic!(
-            "\nParse Error @ {}{} \n {:?} \n",
-            self.filepath.to_string_lossy(),
-            location,
-            err
-        );
+        eprintln!("Parse Error @ {}{}", self.filepath.display(), location);
+        eprintln!("{:?}", err);
+        eprintln!();
+        panic!("Encounterd a Parse Error");
     }
 
     pub fn filepath(&self) -> &Path {
