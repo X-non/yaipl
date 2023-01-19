@@ -1,0 +1,15 @@
+func main() {
+    let steps_left = 25;
+
+    let current = 0;
+    let next = 1;
+
+    while steps_left > 0 {
+        print(current);
+        let temp_next = next;
+        next = next + current;
+        current = temp_next;
+
+        steps_left = steps_left - 1;
+    }
+}
