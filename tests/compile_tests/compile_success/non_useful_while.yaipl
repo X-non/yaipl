@@ -1,7 +1,7 @@
 func main() {
     let cond = true;
     while cond {
-        print("Once");
+        println("Once");
         cond = false;
     }
 }

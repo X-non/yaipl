@@ -1,7 +1,7 @@
 func main() {
     if 0 < 1 and 2 <= 2 or "hello" == "hello" {
-        print("Success");
+        println("Success");
     } else {
-        print("Some comparisons are not implemented correctly");
+        println("Some comparisons are not implemented correctly");
     }
 }

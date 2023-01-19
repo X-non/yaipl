@@ -5,7 +5,7 @@ func main() {
     let next = 1;
 
     while steps_left > 0 {
-        print(current);
+        println(current);
         let temp_next = next;
         next = next + current;
         current = temp_next;

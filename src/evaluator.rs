@@ -351,8 +351,8 @@ impl Evaluatable for FnCall {
         //FIXME print hack;
         if let ExprKind::Variable(ident) = self.callee.kind {
             let callee_name = context.idents.lookup(ident);
-            if callee_name == "print" {
-                return builtin::print(&self.arguments, context).map(Into::into);
+            if callee_name == "println" {
+                return builtin::print_line(&self.arguments, context).map(Into::into);
             } else {
                 todo!("function lookup and call");
             }
