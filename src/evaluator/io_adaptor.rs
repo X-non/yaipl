@@ -64,13 +64,7 @@ impl Read for StdIOAdaptor {
 }
 impl Write for StdIOAdaptor {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let yellow = b"\x1B[33m";
-        let reset = b"\x1B[0m";
-
-        // eprintln!("[IO ADAPTER] buf: {final_buf:?}");
-        self.stdout.write_all(&[yellow, buf, reset].concat())?;
-
-        Ok(buf.len())
+        self.stdout.write(buf)
     }
 
     fn flush(&mut self) -> io::Result<()> {
