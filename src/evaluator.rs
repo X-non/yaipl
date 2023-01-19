@@ -1,5 +1,7 @@
 mod builtin;
 mod evaluatable;
+mod rt;
+
 mod io_adaptor;
 use std::{
     collections::{hash_map::Entry, HashMap},
@@ -17,7 +19,7 @@ use crate::{
             Binary, BinaryOp, Block, BlockWithCondition, Expr, ExprKind, FnCall, IfBranchSet,
             Module, Stmt, StmtKind,
         },
-        semantic_analysis::{AnnotatedAst, SymbolEntry, SymbolTable, Type},
+        semantic_analysis::{AnnotatedAst, SymbolEntry, SymbolTable},
         span::Span,
     },
     utils::interner::{
@@ -26,101 +28,10 @@ use crate::{
     },
 };
 
-pub fn evaluate(ast: AnnotatedAst) -> Result<(), RuntimeError> {
+pub fn evaluate(ast: AnnotatedAst) -> Result<(), rt::Error> {
     Interpreter::new(ast).run()
 }
 
-#[derive(Debug)]
-pub enum RuntimeError {
-    BinaryTypeMissmatch(BinaryOp, Type, Type),
-    TypeMismatch { expected: Type, fount: Type },
-    Uninitalized(Interned<Ident>),
-    Overflow,
-    Shadowed(Interned<Ident>),
-    Undeclared(Interned<Ident>),
-    CantCall(Expr),
-    CantAssign(Expr),
-}
-
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
-pub enum RuntimeValue {
-    Unit,
-    Bool(bool),
-    String(String),
-    Float(f64),
-    Int(i64),
-}
-
-impl RuntimeValue {
-    const TRUE: Self = Self::Bool(true);
-    const FALSE: Self = Self::Bool(false);
-
-    pub fn same_type_as(&self, rhs: &Self) -> bool {
-        self.ty() == rhs.ty()
-    }
-}
-
-impl Display for RuntimeValue {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            RuntimeValue::Unit => write!(f, "Unit"),
-            RuntimeValue::Bool(val) => write!(f, "{}", val),
-            RuntimeValue::String(text) => write!(f, "{}", text),
-            RuntimeValue::Float(val) => write!(f, "{}", val),
-            RuntimeValue::Int(val) => write!(f, "{}", val),
-        }
-    }
-}
-
-impl From<()> for RuntimeValue {
-    fn from(_: ()) -> Self {
-        Self::Unit
-    }
-}
-
-impl TryFrom<u64> for RuntimeValue {
-    type Error = RuntimeError;
-
-    fn try_from(v: u64) -> Result<Self, Self::Error> {
-        match v.try_into() {
-            Ok(v) => Ok(Self::Int(v)),
-            Err(_) => Err(RuntimeError::Overflow),
-        }
-    }
-}
-
-impl From<f64> for RuntimeValue {
-    fn from(v: f64) -> Self {
-        Self::Float(v)
-    }
-}
-impl From<bool> for RuntimeValue {
-    fn from(value: bool) -> Self {
-        Self::Bool(value)
-    }
-}
-
-impl RuntimeValue {
-    fn assert_type(&self, ty: Type) -> Result<(), RuntimeError> {
-        if self.ty() == ty {
-            Ok(())
-        } else {
-            Err(RuntimeError::TypeMismatch {
-                expected: ty,
-                fount: self.ty(),
-            })
-        }
-    }
-    const fn ty(&self) -> Type {
-        match self {
-            RuntimeValue::Bool(_) => Type::Bool,
-            RuntimeValue::String(_) => Type::String,
-            RuntimeValue::Float(_) => Type::Float,
-            RuntimeValue::Int(_) => Type::Int,
-            RuntimeValue::Unit => Type::Unit,
-        }
-    }
-}
 #[derive(Debug, Clone)]
 struct Variable {
     decl_span: Span,
@@ -128,14 +39,14 @@ struct Variable {
 }
 
 impl Variable {
-    pub fn assign(&mut self, value: RuntimeValue) {
+    pub fn assign(&mut self, value: rt::Value) {
         self.kind = VariableKind::Initialized(value);
     }
 }
 
 #[derive(Debug, Clone)]
 enum VariableKind {
-    Initialized(RuntimeValue),
+    Initialized(rt::Value),
     Uninitialized,
 }
 struct EnviormentFrame {
@@ -199,28 +110,28 @@ impl Enviorments {
     fn current_frame(&self) -> &EnviormentFrame {
         self.stack.last().unwrap_or(&self.global)
     }
-    fn get(&self, name: Identifier) -> Result<RuntimeValue, RuntimeError> {
+    fn get(&self, name: Identifier) -> Result<rt::Value, rt::Error> {
         self.resolve_iter()
             .find_map(|frame| frame.get(name))
-            .ok_or(RuntimeError::Undeclared(name))
+            .ok_or(rt::Error::Undeclared(name))
             .and_then(|variable| match &variable.kind {
                 VariableKind::Initialized(value) => Ok(value.clone()),
-                VariableKind::Uninitialized => Err(RuntimeError::Uninitalized(name)),
+                VariableKind::Uninitialized => Err(rt::Error::Uninitalized(name)),
             })
     }
-    fn define(&mut self, name: Identifier, variable_span: Span) -> Result<(), RuntimeError> {
+    fn define(&mut self, name: Identifier, variable_span: Span) -> Result<(), rt::Error> {
         self.current_frame_mut()
             .define_variable(name, variable_span)
-            .ok_or(RuntimeError::Shadowed(name))?;
+            .ok_or(rt::Error::Shadowed(name))?;
         Ok(())
     }
     fn resolve_mut(&mut self, name: Identifier) -> Option<&mut Variable> {
         self.resolve_iter_mut()
             .find_map(|frame| frame.get_mut(name))
     }
-    fn set(&mut self, name: Identifier, value: RuntimeValue) -> Result<(), RuntimeError> {
+    fn set(&mut self, name: Identifier, value: rt::Value) -> Result<(), rt::Error> {
         self.resolve_mut(name)
-            .ok_or(RuntimeError::Undeclared(name))?
+            .ok_or(rt::Error::Undeclared(name))?
             .assign(value);
 
         Ok(())
@@ -252,7 +163,7 @@ impl Interpreter {
         }
     }
 
-    fn run(&mut self) -> Result<(), RuntimeError> {
+    fn run(&mut self) -> Result<(), rt::Error> {
         // let items = &self.root.items;
         let main_fn = self.lookup_str("main").unwrap().clone();
         if let SymbolEntry::Func { def: decl } = main_fn {
@@ -275,7 +186,7 @@ impl Interpreter {
 }
 
 impl Evaluatable for Block {
-    fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, RuntimeError> {
+    fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, rt::Error> {
         context.enviroments.scope_enter();
         for stmt in self.stmts() {
             stmt.evaluate(context)?
@@ -285,7 +196,7 @@ impl Evaluatable for Block {
     }
 }
 impl Evaluatable for Stmt {
-    fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, RuntimeError> {
+    fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, rt::Error> {
         match &self.kind {
             StmtKind::If(set) => set.evaluate(context)?,
             StmtKind::Block(block) => block.evaluate(context)?,
@@ -299,15 +210,15 @@ impl Evaluatable for Stmt {
             }
             StmtKind::WhileLoop(while_loop) => loop {
                 let conditon = while_loop.condition.evaluate(context)?;
-                conditon.assert_type(Type::Bool)?;
-                if conditon == RuntimeValue::FALSE {
+                conditon.assert_type(rt::Type::Bool)?;
+                if conditon == rt::Value::FALSE {
                     break;
                 }
                 while_loop.block.evaluate(context)?;
             },
             StmtKind::Assignment(assignment) => {
                 let ExprKind::Variable(name) = assignment.assignee.kind  else {
-                    return Err(RuntimeError::CantAssign(assignment.assignee.clone()));
+                    return Err(rt::Error::CantAssign(assignment.assignee.clone()));
                 };
                 let value = assignment.rhs.evaluate(context)?;
                 context.enviroments.set(name, value)?;
@@ -318,7 +229,7 @@ impl Evaluatable for Stmt {
 }
 
 impl Evaluatable for IfBranchSet {
-    fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, RuntimeError> {
+    fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, rt::Error> {
         if let DidExecute::Yes = self.if_branch.evaluate(context)? {
             return Ok(());
         }
@@ -341,10 +252,10 @@ pub enum DidExecute {
 }
 impl Evaluatable for BlockWithCondition {
     type Value = DidExecute;
-    fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, RuntimeError> {
+    fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, rt::Error> {
         let conditional = self.condition.evaluate(context)?;
-        conditional.assert_type(Type::Bool)?;
-        if conditional == RuntimeValue::TRUE {
+        conditional.assert_type(rt::Type::Bool)?;
+        if conditional == rt::Value::TRUE {
             self.block.evaluate(context)?;
             Ok(DidExecute::Yes)
         } else {
@@ -354,16 +265,16 @@ impl Evaluatable for BlockWithCondition {
 }
 
 impl Evaluatable for Expr {
-    type Value = RuntimeValue;
+    type Value = rt::Value;
 
-    fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, RuntimeError> {
+    fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, rt::Error> {
         match &self.kind {
             ExprKind::Integer(int) => Ok((*int).try_into()?),
             ExprKind::Float(float) => Ok((*float).into()),
             ExprKind::Bool(v) => Ok((*v).into()),
-            ExprKind::String(text) => Ok(RuntimeValue::String(
-                context.strings.lookup(*text).to_string(),
-            )),
+            ExprKind::String(text) => {
+                Ok(rt::Value::String(context.strings.lookup(*text).to_string()))
+            }
             ExprKind::Variable(name) => context.enviroments.get(*name),
             ExprKind::FnCall(call) => call.evaluate(context),
             ExprKind::Binary(binary) => binary.evaluate(context),
@@ -373,10 +284,10 @@ impl Evaluatable for Expr {
 }
 
 macro_rules! delagate {
-    ($lhs:expr,$rhs:expr, $op:tt, $(RuntimeValue::$kind:ident),+) => {
+    ($lhs:expr,$rhs:expr, $op:tt, $(rt::Value::$kind:ident),+) => {
         match ($lhs, $rhs) {
             $(
-                (RuntimeValue::$kind(lhs), RuntimeValue::$kind(rhs))=> Some(RuntimeValue::$kind(lhs $op rhs)),
+                (rt::Value::$kind(lhs), rt::Value::$kind(rhs))=> Some(rt::Value::$kind(lhs $op rhs)),
             )+
             _ => None,
         }
@@ -384,7 +295,7 @@ macro_rules! delagate {
 }
 
 impl Evaluatable for Binary {
-    type Value = RuntimeValue;
+    type Value = rt::Value;
     fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, Self::Error> {
         let lhs = (&*self.lhs).evaluate(context)?;
         let rhs = (&*self.rhs).evaluate(context)?;
@@ -392,41 +303,49 @@ impl Evaluatable for Binary {
         let rhs_ty = rhs.ty();
 
         let result = match self.op {
-            BinaryOp::Add => delagate!(lhs, rhs, +, RuntimeValue::Int, RuntimeValue::Float),
-            BinaryOp::Sub => delagate!(lhs, rhs, -, RuntimeValue::Int, RuntimeValue::Float),
-            BinaryOp::Mul => delagate!(lhs, rhs, *, RuntimeValue::Int, RuntimeValue::Float),
-            BinaryOp::Div => delagate!(lhs, rhs, /, RuntimeValue::Int, RuntimeValue::Float),
+            BinaryOp::Add => {
+                delagate!(lhs, rhs, +, rt::Value::Int, rt::Value::Float)
+            }
+            BinaryOp::Sub => {
+                delagate!(lhs, rhs, -, rt::Value::Int, rt::Value::Float)
+            }
+            BinaryOp::Mul => {
+                delagate!(lhs, rhs, *, rt::Value::Int, rt::Value::Float)
+            }
+            BinaryOp::Div => {
+                delagate!(lhs, rhs, /, rt::Value::Int, rt::Value::Float)
+            }
 
-            BinaryOp::And => delagate!(lhs, rhs, &&, RuntimeValue::Bool),
-            BinaryOp::Or => delagate!(lhs, rhs, ||, RuntimeValue::Bool),
-            BinaryOp::Xor => delagate!(lhs, rhs, ^, RuntimeValue::Bool),
+            BinaryOp::And => delagate!(lhs, rhs, &&, rt::Value::Bool),
+            BinaryOp::Or => delagate!(lhs, rhs, ||, rt::Value::Bool),
+            BinaryOp::Xor => delagate!(lhs, rhs, ^, rt::Value::Bool),
 
             BinaryOp::Equals => lhs
                 .same_type_as(&rhs)
-                .then(move || RuntimeValue::Bool(lhs == rhs)),
+                .then(move || rt::Value::Bool(lhs == rhs)),
             BinaryOp::NotEquals => lhs
                 .same_type_as(&rhs)
-                .then(move || RuntimeValue::Bool(lhs != rhs)),
+                .then(move || rt::Value::Bool(lhs != rhs)),
 
             BinaryOp::LessThan => lhs
                 .same_type_as(&rhs)
-                .then(move || RuntimeValue::Bool(lhs < rhs)),
+                .then(move || rt::Value::Bool(lhs < rhs)),
             BinaryOp::LessThanOrEqual => lhs
                 .same_type_as(&rhs)
-                .then(move || RuntimeValue::Bool(lhs <= rhs)),
+                .then(move || rt::Value::Bool(lhs <= rhs)),
             BinaryOp::GreaterThan => lhs
                 .same_type_as(&rhs)
-                .then(move || RuntimeValue::Bool(lhs > rhs)),
+                .then(move || rt::Value::Bool(lhs > rhs)),
             BinaryOp::GreaterThanOrEqual => lhs
                 .same_type_as(&rhs)
-                .then(move || RuntimeValue::Bool(lhs >= rhs)),
+                .then(move || rt::Value::Bool(lhs >= rhs)),
         };
-        result.ok_or_else(|| RuntimeError::BinaryTypeMissmatch(self.op, lhs_ty, rhs_ty))
+        result.ok_or_else(|| rt::Error::BinaryTypeMissmatch(self.op, lhs_ty, rhs_ty))
     }
 }
 
 impl Evaluatable for FnCall {
-    type Value = RuntimeValue;
+    type Value = rt::Value;
 
     fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, Self::Error> {
         //FIXME print hack;
@@ -438,6 +357,6 @@ impl Evaluatable for FnCall {
                 todo!("function lookup and call");
             }
         }
-        return Err(RuntimeError::CantCall(self.callee.clone()));
+        return Err(rt::Error::CantCall(self.callee.clone()));
     }
 }

@@ -1,10 +1,10 @@
-use super::{Interpreter, RuntimeError};
+use super::{rt, Interpreter};
 
 pub trait Evaluatable
 where
-    Self::Error: Into<RuntimeError>,
+    Self::Error: Into<rt::Error>,
 {
-    type Error = RuntimeError;
+    type Error = rt::Error;
     type Value = ();
     fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, Self::Error>;
 }

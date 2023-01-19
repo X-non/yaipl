@@ -19,18 +19,10 @@ impl AnnotatedAst {
 
 #[derive(Debug, Clone)]
 pub struct DefPlace;
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum Type {
-    Bool,
-    String,
-    Float,
-    Int,
-    Unit,
-}
 
 #[derive(Debug, Clone)]
 pub enum SymbolEntry {
-    Type { def: DefPlace, kind: Type },
+    // Type { def: DefPlace, kind: Type },
     Variable { def: DefPlace, is_def: bool },
     Func { def: FnDecl },
 }
