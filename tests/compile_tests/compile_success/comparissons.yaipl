@@ -1,4 +1,4 @@
-func main {
+func main() {
     if 0 < 1 and 2 <= 2 or "hello" == "hello" {
         print("Success");
     } else {

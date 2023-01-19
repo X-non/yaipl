@@ -1,4 +1,4 @@
-func main {
+func main() {
     let int = 10;
     let float = 10.0123123;
     let string = "Hello World";

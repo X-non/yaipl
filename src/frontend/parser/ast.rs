@@ -2,14 +2,14 @@ use std::rc::Rc;
 
 use crate::{
     frontend::{lexer::TokenKind, span::Span},
-    utils::{
-        interner::{
-            branded::{Ident, Identifier, StrLiteral},
-            Interned, Interner,
-        },
-        smallvec::SmallVec,
+    utils::interner::{
+        branded::{Ident, Identifier, StrLiteral},
+        Interned, Interner,
     },
 };
+
+use super::ParsedList;
+
 pub struct NodeId(u32);
 
 impl NodeId {
@@ -44,8 +44,8 @@ pub struct Module {
 
 #[derive(Debug, Clone)]
 pub struct FnArguments {
-    pub span: Option<Span>,
-    pub arguments: SmallVec<Expr, 5>,
+    pub span: Span,
+    pub arguments: Vec<Expr>,
 }
 
 #[derive(Debug, Clone)]
@@ -215,12 +215,32 @@ pub struct Item {
 pub enum ItemKind {
     FnDecl(FnDecl),
 }
+#[derive(Debug, Clone)]
+pub struct FnParameter {
+    pub name: Identifier,
+    pub span: Span,
+}
 
+#[derive(Debug, Clone)]
+pub struct FnParameters {
+    pub span: Span,
+    pub parameters: Vec<FnParameter>,
+}
+impl From<ParsedList<FnParameter>> for FnParameters {
+    fn from(list: ParsedList<FnParameter>) -> Self {
+        debug_assert!(list.start.is_open_paren());
+        debug_assert!(list.end.is_closed_paren());
+        let span = list.start.span.combine(list.end.span);
+        let parameters = list.elements;
+        Self { span, parameters }
+    }
+}
 #[derive(Debug, Clone)]
 pub struct FnDecl {
     pub name_span: Span,
     pub name: Identifier,
     pub block: Block,
+    pub parameters: FnParameters,
 }
 
 #[derive(Debug, Clone)]

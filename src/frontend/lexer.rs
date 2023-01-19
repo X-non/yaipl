@@ -29,6 +29,14 @@ impl Token {
     pub fn is_literal(&self) -> bool {
         self.kind.is_literal()
     }
+
+    pub fn is_open_paren(&self) -> bool {
+        self.kind.is_open_paren()
+    }
+
+    pub fn is_closed_paren(&self) -> bool {
+        self.kind.is_closed_paren()
+    }
 }
 pub struct LexerState {
     pub strings: Rc<Interner<StrLiteral>>,
@@ -198,6 +206,22 @@ impl TokenKind {
                 | TokenKind::String(_)
                 | TokenKind::Ident(_)
         )
+    }
+
+    /// Returns `true` if the token kind is [`OpenParen`].
+    ///
+    /// [`OpenParen`]: TokenKind::OpenParen
+    #[must_use]
+    pub fn is_open_paren(&self) -> bool {
+        matches!(self, Self::OpenParen)
+    }
+
+    /// Returns `true` if the token kind is [`ClosedParen`].
+    ///
+    /// [`ClosedParen`]: TokenKind::ClosedParen
+    #[must_use]
+    pub fn is_closed_paren(&self) -> bool {
+        matches!(self, Self::ClosedParen)
     }
 }
 

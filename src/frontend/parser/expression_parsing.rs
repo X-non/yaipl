@@ -119,12 +119,12 @@ impl<'src> Parser<'src> {
                 if bp < min_bp {
                     break;
                 }
-                let postfix = self.eat();
+
                 match postfix.kind {
                     TokenKind::OpenParen => {
-                        let (argumant_span, arguments) = self.parse_argument_list()?;
+                        let arguments = self.parse_argument_list()?;
                         lhs = Expr {
-                            span: lhs.span.combine(argumant_span),
+                            span: lhs.span.combine(arguments.span),
                             kind: ExprKind::FnCall(Box::new(FnCall {
                                 callee: lhs,
                                 arguments,
@@ -133,6 +133,7 @@ impl<'src> Parser<'src> {
                     }
                     _ => unimplemented!(),
                 };
+                /*Remember to eat the postfix token */
             } else {
                 break;
             }

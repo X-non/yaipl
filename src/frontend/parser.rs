@@ -1,10 +1,10 @@
 use std::fmt::Debug;
 
-use crate::utils::smallvec::SmallVec;
+use crate::utils::{interner::branded::Identifier, smallvec::SmallVec};
 
 use self::ast::{
     Assignment, Ast, Block, BlockWithCondition, Expr, ExprKind, FnArguments, FnCall, FnDecl,
-    IfBranchSet, Item, ItemKind, Module, Stmt, StmtKind, VaribleDecl, WhileLoop,
+    FnParameter, IfBranchSet, Item, ItemKind, Module, Stmt, StmtKind, VaribleDecl, WhileLoop,
 };
 
 use super::{
@@ -33,12 +33,18 @@ impl Debug for ParseError {
 }
 
 #[derive(Debug)]
+pub struct ParsedList<Node> {
+    pub start: Token,
+    pub end: Token,
+    pub elements: Vec<Node>,
+}
+#[derive(Debug)]
 pub enum ParseErrorKind {
     UnexpectedEOF,
     UnexpectedToken,
     Expected(Box<dyn 'static + Debug + Send>),
     WholeProgramNotParsed(Box<Module>),
-    FnArgOnlyComma,
+    ListOnlyComma,
 }
 
 impl ParseErrorKind {
@@ -190,27 +196,21 @@ impl<'src> Parser<'src> {
             block,
         })
     }
-
+    #[deprecated]
     fn parse_call_expr(&mut self) -> ParseResult<Expr> {
-        let mut expr = self.parse_primary()?;
-        while self
-            .eat_if(|token| token.kind == TokenKind::OpenParen)
-            .is_some()
-        {
-            let (right_paren, arguments) = self.parse_argument_list()?;
+        let mut parsed = self.parse_primary()?;
+        while self.peek().kind == TokenKind::OpenParen {
+            let arguments = self.parse_argument_list()?;
 
-            let expr_span = expr.span;
+            let span = parsed.span.combine(arguments.span);
             let kind = ExprKind::FnCall(Box::new(FnCall {
                 arguments,
-                callee: expr,
+                callee: parsed,
             }));
 
-            expr = Expr {
-                span: expr_span.combine(right_paren),
-                kind,
-            };
+            parsed = Expr { span, kind };
         }
-        Ok(expr)
+        Ok(parsed)
     }
     fn parse_primary(&mut self) -> ParseResult<Expr> {
         self.map_eat_if(|token| {
@@ -326,50 +326,54 @@ impl<'src> Parser<'src> {
         })
     }
 
+    fn parse_fn_parameter(&mut self) -> ParseResult<FnParameter> {
+        self.map_eat_if(|token| match token.kind {
+            TokenKind::Ident(name) => Ok(FnParameter {
+                name,
+                span: token.span,
+            }),
+            _ => Err(ParseErrorKind::Expected(Box::new("Identifier")).with_span(token.span)),
+        })
+    }
     fn parse_fn_decl(&mut self) -> ParseResult<FnDecl> {
         let (name, name_span) = self.map_eat_if(|token| match token.kind {
             TokenKind::Ident(name) => Ok((name, token.span)),
             _ => Err(ParseErrorKind::Expected(Box::new("Identifier")).with_span(token.span)),
         })?;
 
-        let name = name;
+        let parameters = self
+            .parse_list_like(
+                Token::is_open_paren,
+                Token::is_closed_paren,
+                Parser::parse_fn_parameter,
+            )?
+            .into();
         let block = self.parse_block(None)?;
 
         Ok(FnDecl {
             name,
             block,
             name_span,
+            parameters,
         })
     }
 
-    fn parse_argument_list(&mut self) -> ParseResult<(Span, FnArguments)> {
-        //exists to disallow <callee>(,);
-        let mut last_consumed_comma = None;
-        let mut argument_exprs = SmallVec::new();
+    fn parse_argument_list(&mut self) -> ParseResult<FnArguments> {
+        let ParsedList {
+            start,
+            end,
+            elements,
+            ..
+        } = self.parse_list_like(
+            Token::is_open_paren,
+            Token::is_closed_paren,
+            Parser::parse_expr,
+        )?;
 
-        let right_paren = loop {
-            if let Some(right_paren) = self.eat_if(|token| token.kind == TokenKind::ClosedParen) {
-                break right_paren;
-            }
-
-            argument_exprs.push(self.parse_expr()?);
-            last_consumed_comma = self.eat_if(|token| token.kind == TokenKind::Comma);
-
-            if let Some(right_paren) = self.eat_if(|token| token.kind == TokenKind::ClosedParen) {
-                break right_paren;
-            }
-        };
-
-        if last_consumed_comma.is_some() && argument_exprs.len() == 0 {
-            return Err(ParseErrorKind::FnArgOnlyComma.with_span(last_consumed_comma.unwrap().span));
-        }
-        let fn_arguments = FnArguments {
-            span: argument_exprs
-                .first()
-                .map(|first| first.span.combine(argument_exprs.last().unwrap().span)),
-            arguments: argument_exprs,
-        };
-        Ok((right_paren.span, fn_arguments))
+        Ok(FnArguments {
+            span: start.span.combine(end.span),
+            arguments: elements,
+        })
     }
 
     fn peek_postfix_op(&mut self) -> Option<&Token> {
@@ -378,6 +382,48 @@ impl<'src> Parser<'src> {
             TokenKind::OpenParen => Some(token),
             _ => None,
         }
+    }
+
+    pub fn parse_list_like<PStart, PEnd, ParseFn, Node>(
+        &mut self,
+        is_start: PStart,
+        is_end: PEnd,
+        element_parser: ParseFn,
+    ) -> ParseResult<ParsedList<Node>>
+    where
+        PStart: Fn(&Token) -> bool,
+        PEnd: Fn(&Token) -> bool,
+        ParseFn: Fn(&mut Self) -> ParseResult<Node>,
+    {
+        let start_token = self.eat_if(&is_start).ok_or(
+            ParseErrorKind::Expected(Box::new("The start token")).with_span(self.peek().span),
+        )?;
+
+        //exists to disallow <callee>(,);
+        let mut last_consumed_comma = None;
+        let mut elements = Vec::new();
+
+        let end_token = loop {
+            if let Some(end_token) = self.eat_if(&is_end) {
+                break end_token;
+            }
+
+            elements.push(element_parser(self)?);
+            last_consumed_comma = self.eat_if(|token| token.kind == TokenKind::Comma);
+
+            if let Some(end_token) = self.eat_if(&is_end) {
+                break end_token;
+            }
+        };
+
+        if last_consumed_comma.is_some() && elements.len() == 0 {
+            return Err(ParseErrorKind::ListOnlyComma.with_span(last_consumed_comma.unwrap().span));
+        };
+        Ok(ParsedList {
+            start: start_token,
+            end: end_token,
+            elements,
+        })
     }
 }
 

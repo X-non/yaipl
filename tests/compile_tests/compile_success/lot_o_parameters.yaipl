@@ -1,0 +1,2 @@
+func alot_o_parameters(a, b, c, d, e, f, g) {}
+func main() {}
