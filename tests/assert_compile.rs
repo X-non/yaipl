@@ -1,81 +1,101 @@
-use rayon::prelude::*;
+use assert_cmd::assert::{Assert, AssertResult};
+use assert_cmd::Command;
+
+use std::ops::Deref;
 use std::{
-    any::Any,
     env::current_dir,
-    fs::{self, DirEntry},
-    io,
-    ops::Range,
-    panic::catch_unwind,
+    fs::{self},
     path::{Path, PathBuf},
 };
 
-use yaipl::{
-    build_program,
-    cli::{CLIOptions, DebugFlags},
-};
-
-fn try_compile(full_path: PathBuf) -> Result<(), Box<dyn Any + Send>> {
-    catch_unwind(|| {
-        build_program(&CLIOptions {
-            flags: DebugFlags {
-                dump_ast: false,
-                dump_tokens: false,
-            },
-            command: yaipl::cli::Command::Check { path: full_path },
-        })
-    })
+fn compile_success_folder() -> impl Iterator<Item = PathBuf> {
+    test_folder(Path::new("compile_success"))
 }
-fn rows_contained(src: &str, range: Range<usize>) -> (&str, Range<usize>) {
-    let start = src[..range.start].rfind('\n').unwrap_or(0);
-    let end = src[range.end..].find('\n').unwrap_or(src.len());
-
-    (&src[start..end].trim(), start..end)
+fn compile_failure_folder() -> impl Iterator<Item = PathBuf> {
+    test_folder(Path::new("compile_failure"))
 }
 
-fn test_folder(subfolder: &Path) -> io::Result<impl ParallelIterator<Item = io::Result<DirEntry>>> {
+fn test_folder(subfolder: &Path) -> impl Iterator<Item = PathBuf> {
     let mut path = current_dir().unwrap();
     path.push(r"tests\compile_tests\");
     path.push(subfolder);
 
-    fs::read_dir(path).map(|dir| {
-        dir.filter(|a| {
-            a.as_ref()
-                .map_or(false, |a| a.file_type().unwrap().is_file())
-        })
-        .par_bridge()
-    })
+    let dir = fs::read_dir(&path)
+        .unwrap_or_else(|err| panic!("Can't open {}, Err: {}", path.display(), err));
+    let files = dir.filter_map(|file| {
+        let file = file.ok()?;
+        if file.file_type().ok()?.is_file() {
+            return Some(file.path());
+        }
+        None
+    });
+
+    files
 }
 
-fn try_compile_all_in(subfolder: &Path) -> Vec<(String, Result<(), Box<dyn Any + Send>>)> {
-    test_folder(subfolder)
+fn start_build(path: &Path) -> Assert {
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .map(|dir| {
-            let file_path = dir.unwrap().path();
-            let name = file_path.to_string_lossy().to_string();
-            (name, try_compile(file_path))
-        })
-        .collect()
+        .arg("check")
+        .arg(path)
+        .assert()
+}
+
+fn start_all<'a>(files: impl 'a + Iterator<Item = &'a Path>) -> impl 'a + Iterator<Item = Assert> {
+    files.map(|file| start_build(file))
+}
+fn print_with_left_line(text: &str) {
+    for line in text.lines() {
+        println!("       | {}", line);
+    }
+}
+fn assert_forall<Assertion: Fn(Assert) -> AssertResult>(
+    files: impl Iterator<Item = PathBuf>,
+    assertion: Assertion,
+) {
+    let files: Vec<_> = files.collect();
+    let all = start_all(files.iter().map(Deref::deref));
+    let mut results: Vec<_> = all.map(assertion).zip(files.iter()).collect();
+    //places the successes first
+    results.sort_unstable_by_key(|(result, _)| result.is_ok());
+    if results.iter().all(|(result, _)| result.is_ok()) {
+        return;
+    }
+
+    for (result, name) in results {
+        let succsess = match &result {
+            Ok(_) => "PASS",
+            Err(_) => "FAIL",
+        };
+        println!("{} {}", succsess, name.display());
+
+        if let Err(err) = result {
+            let assert = err.assert();
+            let output = assert.get_output();
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+
+            println!("     <std error>");
+            print_with_left_line(&stderr);
+            println!("     </std error>");
+            println!();
+
+            println!("     <std output>");
+            print_with_left_line(&stdout);
+            println!("     </std output>");
+        }
+    }
+    panic!("Test failed for som files");
 }
 #[test]
 fn assert_compile_success() {
-    let compiled = try_compile_all_in(Path::new("compile_success"));
-    for (name, result) in compiled {
-        eprintln!("Start of {name}");
-        assert!(
-            result.is_ok(),
-            "{:?}",
-            result.as_ref().map_err(|err| err.downcast_ref::<String>())
-        );
+    let files = compile_success_folder();
 
-        eprintln!("End of {name}");
-    }
+    assert_forall(files, Assert::try_success);
 }
 #[test]
 fn assert_compile_faliure() {
-    let compiled = try_compile_all_in(Path::new("compile_failure"));
-    for (name, result) in compiled {
-        eprintln!("Start of {name}");
-        assert!(result.is_err(), "{:?}", result);
-        eprintln!("End of {name}");
-    }
+    let files = compile_failure_folder();
+
+    assert_forall(files, Assert::try_failure);
 }
