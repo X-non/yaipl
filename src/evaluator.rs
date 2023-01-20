@@ -11,7 +11,10 @@ use std::{
 };
 
 pub use self::evaluatable::Evaluatable;
-use self::io_adaptor::{IoAdaptor, StdIOAdaptor};
+use self::{
+    builtin::BuiltinFn,
+    io_adaptor::{IoAdaptor, StdIOAdaptor},
+};
 
 use crate::{
     frontend::{
@@ -352,7 +355,7 @@ impl Evaluatable for FnCall {
         if let ExprKind::Variable(ident) = self.callee.kind {
             let callee_name = context.idents.lookup(ident);
             if callee_name == "println" {
-                return builtin::print_line(&self.arguments, context).map(Into::into);
+                return builtin::PrintLine::call(&self.arguments, context).map(Into::into);
             } else {
                 todo!("function lookup and call");
             }
