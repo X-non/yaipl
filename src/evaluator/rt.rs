@@ -1,9 +1,11 @@
 use std::fmt::Display;
 
 use crate::{
-    frontend::parser::ast::{BinaryOp, Expr},
-    utils::interner::{branded::Identifier, Interned},
+    frontend::parser::ast::{BinaryOp, Expr, FnDecl},
+    utils::interner::branded::Identifier,
 };
+
+use super::builtin;
 
 #[derive(Debug)]
 pub enum Error {
@@ -15,6 +17,7 @@ pub enum Error {
     Undeclared(Identifier),
     CantCall(Expr),
     CantAssign(Expr),
+    ArityError { expected: i32, found: usize },
 }
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Type {
@@ -31,6 +34,16 @@ pub enum Value {
     String(String),
     Float(f64),
     Int(i64),
+}
+
+impl From<String> for Value {
+    fn from(v: String) -> Self {
+        Self::String(v)
+    }
+}
+pub enum FnObject {
+    Yaipl(FnDecl),
+    Builtin(builtin::Function),
 }
 
 impl Value {

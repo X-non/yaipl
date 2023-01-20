@@ -10,6 +10,7 @@ clap = { version = "4.0.29", features = ["derive"] }
 logos = "0.12.1"
 bitfield-struct = "0.1.7"
 smallvec = {version ="1.10.0", features =["const_generics","arbitrary"]}
+enum_dispatch = "0.3.11"
 
 [dev-dependencies]
 assert_cmd = "2.0.8"

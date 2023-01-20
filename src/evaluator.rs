@@ -5,14 +5,13 @@ mod rt;
 mod io_adaptor;
 use std::{
     collections::{hash_map::Entry, HashMap},
-    fmt::Display,
     iter::once,
     rc::Rc,
 };
 
 pub use self::evaluatable::Evaluatable;
 use self::{
-    builtin::BuiltinFn,
+    builtin::BuiltinFunction,
     io_adaptor::{IoAdaptor, StdIOAdaptor},
 };
 
@@ -140,29 +139,24 @@ impl Enviorments {
         Ok(())
     }
 }
-
 #[allow(dead_code)]
 pub struct Interpreter {
     root: Module,
     idents: Rc<Interner<Ident>>,
     strings: Rc<Interner<StrLiteral>>,
-    io_adaptor: Box<dyn IoAdaptor>,
+    // io_adaptor: Box<dyn IoAdaptor>,
     symbol_table: SymbolTable,
     enviroments: Enviorments,
 }
 
 impl Interpreter {
     fn new(ast: AnnotatedAst) -> Self {
-        Self::with_io_adaptor(ast, Box::new(StdIOAdaptor::new()))
-    }
-    fn with_io_adaptor(ast: AnnotatedAst, io_adaptor: Box<dyn IoAdaptor>) -> Self {
         Self {
             root: ast.ast.root,
             idents: ast.ast.identifiers,
             symbol_table: ast.table,
             enviroments: Enviorments::new(),
             strings: ast.ast.strings,
-            io_adaptor,
         }
     }
 
@@ -354,11 +348,12 @@ impl Evaluatable for FnCall {
         //FIXME print hack;
         if let ExprKind::Variable(ident) = self.callee.kind {
             let callee_name = context.idents.lookup(ident);
-            if callee_name == "println" {
-                return builtin::PrintLine::call(&self.arguments, context).map(Into::into);
-            } else {
-                todo!("function lookup and call");
-            }
+            let fn_obj: builtin::Function = match callee_name {
+                "println" => builtin::PrintLine.into(),
+                "readln" => builtin::ReadLine.into(),
+                _ => todo!("function lookup and call"),
+            };
+            return fn_obj.call(&self.arguments, context);
         }
         return Err(rt::Error::CantCall(self.callee.clone()));
     }

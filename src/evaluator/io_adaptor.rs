@@ -77,6 +77,7 @@ impl IoAdaptor for StdIOAdaptor {
     }
 }
 
+#[deprecated]
 pub trait IoAdaptor: Read + Write {
     fn err(&mut self) -> &mut dyn Write;
 }

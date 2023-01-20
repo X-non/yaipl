@@ -1,27 +1,72 @@
+use std::{collections::HashMap, io::stdin};
+
+use enum_dispatch::enum_dispatch;
+
 use crate::frontend::parser::ast::FnArguments;
 
 use super::{rt, Evaluatable, Interpreter};
-pub trait BuiltinFn {
-    const NAME: &'static str;
-    type Value;
-    type Error;
-    fn call(arguments: &FnArguments, context: &mut Interpreter)
-        -> Result<Self::Value, Self::Error>;
+pub fn builtin_functions() -> HashMap<&'static str, Function> {
+    [ReadLine.into(), PrintLine.into()]
+        .into_iter()
+        .map(|func: Function| (func.name(), func))
+        .collect()
+}
+#[enum_dispatch(BuiltinFunction)]
+pub enum Function {
+    PrintLine,
+    ReadLine,
+}
+
+#[enum_dispatch]
+pub trait BuiltinFunction {
+    fn name(&self) -> &'static str;
+
+    fn call(
+        &self,
+        arguments: &FnArguments,
+        context: &mut Interpreter,
+    ) -> Result<rt::Value, rt::Error>;
+}
+pub struct ReadLine;
+
+impl BuiltinFunction for ReadLine {
+    fn name(&self) -> &'static str {
+        todo!()
+    }
+
+    fn call(
+        &self,
+        arguments: &FnArguments,
+        context: &mut Interpreter,
+    ) -> Result<rt::Value, rt::Error> {
+        let arity = arguments.arguments.len();
+        if arity != 0 {
+            return Err(rt::Error::ArityError {
+                found: arity,
+                expected: 0,
+            });
+        }
+
+        let mut string = String::new();
+
+        stdin().read_line(&mut string).unwrap();
+        let trimmed = string.trim_end_matches("\r\n").trim_end_matches("\n");
+        string.truncate(trimmed.len());
+        Ok(string.into())
+    }
 }
 
 pub struct PrintLine;
 
-impl BuiltinFn for PrintLine {
-    const NAME: &'static str = "println";
-
-    type Value = ();
-
-    type Error = rt::Error;
-
+impl BuiltinFunction for PrintLine {
+    fn name(&self) -> &'static str {
+        "println"
+    }
     fn call(
+        &self,
         arguments: &FnArguments,
         context: &mut Interpreter,
-    ) -> Result<Self::Value, Self::Error> {
+    ) -> Result<rt::Value, rt::Error> {
         let context: &mut Interpreter = context;
         let formated: Result<Vec<String>, _> = arguments
             .arguments
@@ -30,21 +75,7 @@ impl BuiltinFn for PrintLine {
             .collect();
         let formated = formated?.join(" ");
 
-        (writeln!(context.io_adaptor, "{}", formated)).unwrap();
-        context.io_adaptor.flush().unwrap();
-        Ok(())
+        println!("{}", formated);
+        Ok(rt::Value::Unit)
     }
-}
-
-fn print_line(arguments: &FnArguments, context: &mut Interpreter) -> Result<(), rt::Error> {
-    let formated: Result<Vec<String>, _> = arguments
-        .arguments
-        .iter()
-        .map(|e| e.evaluate(context).map(|value| format!("{}", value)))
-        .collect();
-    let formated = formated?.join(" ");
-
-    (writeln!(context.io_adaptor, "{}", formated)).unwrap();
-    context.io_adaptor.flush().unwrap();
-    Ok(())
 }

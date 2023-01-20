@@ -1,0 +1,8 @@
+func main() {
+    let input = readln();
+    if input == "green" {
+        println("It was green");
+    } else {
+        println("No green, why did you do this to me");
+    }
+}
