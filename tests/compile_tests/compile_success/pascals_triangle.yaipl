@@ -1,0 +1,41 @@
+func main () {
+    let level = 0; 
+
+    while level <= 10 {
+        println("----------");
+
+        let k = 0;
+        while k <= level {
+            let k_factorial = 1;
+            let level_sub_k_factorial = 1;
+            let level_factorial = 1;
+            
+            {
+                let temp = 1;
+                while temp <= k {
+                    k_factorial = k_factorial * temp;
+                    temp = temp + 1;
+                }
+
+                temp = 1;
+                let level_sub_k = level - k;
+                while temp <= level_sub_k {
+                    level_sub_k_factorial = level_sub_k_factorial * temp;
+                    temp = temp + 1;
+                }
+
+                temp = 1;
+                while temp <= level {
+                    level_factorial = level_factorial * temp;
+                    temp = temp + 1;
+                }
+            } 
+            let denom = k_factorial * level_sub_k_factorial;
+            let koefficient = level_factorial / denom;
+            println(koefficient);
+            k = k + 1;
+        }
+
+        level = level + 1;
+    }
+}
