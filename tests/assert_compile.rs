@@ -1,5 +1,7 @@
 use assert_cmd::assert::{Assert, AssertResult};
 use assert_cmd::Command;
+use rayon::prelude::*;
+use std::io;
 
 use std::ops::Deref;
 use std::{
@@ -33,15 +35,13 @@ fn test_folder(subfolder: &Path) -> impl Iterator<Item = PathBuf> {
     files
 }
 
-fn start_build(path: &Path) -> Assert {
-    Command::cargo_bin(env!("CARGO_PKG_NAME"))
-        .unwrap()
-        .arg("check")
-        .arg(path)
-        .assert()
+fn start_build(path: &Path) -> Command {
+    let mut command = Command::cargo_bin(env!("CARGO_PKG_NAME")).unwrap();
+    command.arg("check").arg(path);
+    command
 }
 
-fn start_all<'a>(files: impl 'a + Iterator<Item = &'a Path>) -> impl 'a + Iterator<Item = Assert> {
+fn start_all<'a>(files: impl 'a + Iterator<Item = &'a Path>) -> impl 'a + Iterator<Item = Command> {
     files.map(|file| start_build(file))
 }
 fn print_with_left_line(text: &str) {
@@ -49,13 +49,19 @@ fn print_with_left_line(text: &str) {
         println!("       | {}", line);
     }
 }
-fn assert_forall<Assertion: Fn(Assert) -> AssertResult>(
+fn assert_forall<Assertion: Sync + Fn(Assert) -> AssertResult>(
     files: impl Iterator<Item = PathBuf>,
     assertion: Assertion,
 ) {
     let files: Vec<_> = files.collect();
-    let all = start_all(files.iter().map(Deref::deref));
-    let mut results: Vec<_> = all.map(assertion).zip(files.iter()).collect();
+    let commands = start_all(files.iter().map(Deref::deref))
+        .zip(files.iter())
+        .par_bridge();
+    let results = commands
+        .map(|(mut command, path)| (command.assert(), path))
+        .map(|(assert, path)| (assertion(assert), path));
+
+    let mut results: Vec<_> = results.collect();
     //places the successes first
     results.sort_unstable_by_key(|(result, _)| result.is_ok());
     if results.iter().all(|(result, _)| result.is_ok()) {
