@@ -9,11 +9,8 @@ use std::{
     rc::Rc,
 };
 
+use self::builtin::BuiltinFunction;
 pub use self::evaluatable::Evaluatable;
-use self::{
-    builtin::BuiltinFunction,
-    io_adaptor::{IoAdaptor, StdIOAdaptor},
-};
 
 use crate::{
     frontend::{

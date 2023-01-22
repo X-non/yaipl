@@ -12,6 +12,7 @@ pub fn builtin_functions() -> HashMap<&'static str, Function> {
         .collect()
 }
 #[enum_dispatch(BuiltinFunction)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Function {
     PrintLine,
     ReadLine,
@@ -27,6 +28,8 @@ pub trait BuiltinFunction {
         context: &mut Interpreter,
     ) -> Result<rt::Value, rt::Error>;
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ReadLine;
 
 impl BuiltinFunction for ReadLine {
@@ -56,6 +59,7 @@ impl BuiltinFunction for ReadLine {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PrintLine;
 
 impl BuiltinFunction for PrintLine {

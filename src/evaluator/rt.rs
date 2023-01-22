@@ -1,11 +1,11 @@
-use std::fmt::Display;
+use std::{fmt::Display, rc::Rc};
 
 use crate::{
     frontend::parser::ast::{BinaryOp, Expr, FnDecl},
     utils::interner::branded::Identifier,
 };
 
-use super::builtin;
+use super::builtin::{self, BuiltinFunction};
 
 #[derive(Debug)]
 pub enum Error {
@@ -26,6 +26,7 @@ pub enum Type {
     Float,
     Int,
     Unit,
+    Func,
 }
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum Value {
@@ -34,6 +35,7 @@ pub enum Value {
     String(String),
     Float(f64),
     Int(i64),
+    FnObject(FnObject),
 }
 
 impl From<String> for Value {
@@ -41,9 +43,35 @@ impl From<String> for Value {
         Self::String(v)
     }
 }
+#[derive(Debug, Clone)]
 pub enum FnObject {
-    Yaipl(FnDecl),
+    Yaipl(Rc<FnDecl>),
     Builtin(builtin::Function),
+}
+
+impl Display for FnObject {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FnObject::Yaipl(decl) => write!(f, "<func {:?}>", decl.name), //todo resolve the namenn
+            FnObject::Builtin(func) => write!(f, "<builtin func {}>", func.name()),
+        }
+    }
+}
+
+impl PartialEq for FnObject {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Builtin(lhs), Self::Builtin(rhs)) => lhs == rhs,
+            (Self::Yaipl(lhs), Self::Yaipl(rhs)) => Rc::ptr_eq(lhs, rhs),
+            _ => false,
+        }
+    }
+}
+
+impl PartialOrd for FnObject {
+    fn partial_cmp(&self, _: &Self) -> Option<std::cmp::Ordering> {
+        None
+    }
 }
 
 impl Value {
@@ -63,6 +91,7 @@ impl Display for Value {
             Value::String(text) => write!(f, "{}", text),
             Value::Float(val) => write!(f, "{}", val),
             Value::Int(val) => write!(f, "{}", val),
+            Value::FnObject(fn_obj) => write!(f, "{}", fn_obj),
         }
     }
 }
@@ -113,6 +142,7 @@ impl Value {
             Value::Float(_) => Type::Float,
             Value::Int(_) => Type::Int,
             Value::Unit => Type::Unit,
+            Value::FnObject(_) => Type::Func,
         }
     }
 }
