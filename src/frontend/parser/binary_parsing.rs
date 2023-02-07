@@ -4,8 +4,8 @@ use super::{
     ast::{Binary, Expr, ExprKind},
     ParseResult, Parser,
 };
-
 impl<'src> Parser<'src> {
+    #[deprecated]
     fn parse_binary<M, ParseFn>(
         &mut self,
         matcher: M,
@@ -35,12 +35,15 @@ impl<'src> Parser<'src> {
         Ok(workning_expr)
     }
 
+    #[deprecated]
     pub fn parse_add_or_sub(&mut self) -> ParseResult<Expr> {
         self.parse_binary(
             |token| matches!(token.kind, TokenKind::Plus | TokenKind::Minus),
             Self::parse_mul_or_div,
         )
     }
+
+    #[deprecated]
     pub fn parse_mul_or_div(&mut self) -> ParseResult<Expr> {
         self.parse_binary(
             |token| matches!(token.kind, TokenKind::Star | TokenKind::Slash),
@@ -48,6 +51,7 @@ impl<'src> Parser<'src> {
         )
     }
 
+    #[deprecated]
     fn parse_unary(&mut self) -> ParseResult<Expr> {
         if let Some(unary_token) = self.eat_if(|token| token.kind == TokenKind::Minus) {
             let content = self.parse_unary()?;
