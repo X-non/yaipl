@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, rc::Rc};
 
 use crate::utils::{interner::branded::Identifier, smallvec::SmallVec};
 
@@ -151,7 +151,7 @@ impl<'src> Parser<'src> {
             let fn_decl = self.parse_fn_decl()?;
             let item = Item {
                 span: fn_token.span.combine(fn_decl.block.span), // FIXME: This is kinda hacky
-                kind: ItemKind::FnDecl(fn_decl),
+                kind: ItemKind::FnDecl(Rc::new(fn_decl)),
             };
             Ok(item)
         } else {
@@ -202,7 +202,7 @@ impl<'src> Parser<'src> {
         while self.peek().kind == TokenKind::OpenParen {
             let arguments = self.parse_argument_list()?;
 
-            let span = parsed.span.combine(arguments.span);
+            let span = parsed.span.combine_mabye(arguments.span);
             let kind = ExprKind::FnCall(Box::new(FnCall {
                 arguments,
                 callee: parsed,
@@ -370,10 +370,7 @@ impl<'src> Parser<'src> {
             Parser::parse_expr,
         )?;
 
-        Ok(FnArguments {
-            span: start.span.combine(end.span),
-            arguments: elements,
-        })
+        Ok(FnArguments::new(start.span.combine(end.span), elements))
     }
 
     fn peek_postfix_op(&mut self) -> Option<&Token> {

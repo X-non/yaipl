@@ -4,7 +4,10 @@ use enum_dispatch::enum_dispatch;
 
 use crate::frontend::parser::ast::FnArguments;
 
-use super::{rt, Evaluatable, Interpreter};
+use super::{
+    rt::{self, Arity},
+    Evaluatable, Interpreter,
+};
 pub fn builtin_functions() -> HashMap<&'static str, Function> {
     [ReadLine.into(), PrintLine.into()]
         .into_iter()
@@ -21,7 +24,7 @@ pub enum Function {
 #[enum_dispatch]
 pub trait BuiltinFunction {
     fn name(&self) -> &'static str;
-
+    fn arity(&self) -> Arity;
     fn call(
         &self,
         arguments: &FnArguments,
@@ -33,8 +36,12 @@ pub trait BuiltinFunction {
 pub struct ReadLine;
 
 impl BuiltinFunction for ReadLine {
+    fn arity(&self) -> Arity {
+        Arity::Fixed(0)
+    }
+
     fn name(&self) -> &'static str {
-        todo!()
+        "readln"
     }
 
     fn call(
@@ -81,5 +88,9 @@ impl BuiltinFunction for PrintLine {
 
         println!("{}", formated);
         Ok(rt::Value::Unit)
+    }
+
+    fn arity(&self) -> Arity {
+        Arity::Variable
     }
 }

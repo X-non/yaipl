@@ -9,14 +9,14 @@ use std::{
     rc::Rc,
 };
 
-use self::builtin::BuiltinFunction;
 pub use self::evaluatable::Evaluatable;
+use self::{builtin::BuiltinFunction, rt::FnObject};
 
 use crate::{
     frontend::{
         parser::ast::{
-            Binary, BinaryOp, Block, BlockWithCondition, Expr, ExprKind, FnCall, IfBranchSet,
-            Module, Stmt, StmtKind,
+            Binary, BinaryOp, Block, BlockWithCondition, Expr, ExprKind, FnArguments, FnCall,
+            IfBranchSet, ItemKind, Module, Stmt, StmtKind,
         },
         semantic_analysis::{AnnotatedAst, SymbolEntry, SymbolTable},
         span::Span,
@@ -76,16 +76,16 @@ impl EnviormentFrame {
         }
     }
 }
-struct Enviorments {
-    global: EnviormentFrame,
+struct LocalEnviorment {
+    parent: Rc<EnviormentFrame>,
     stack: Vec<EnviormentFrame>,
 }
 #[allow(dead_code)]
-impl Enviorments {
+impl LocalEnviorment {
     fn new() -> Self {
         Self {
             stack: vec![EnviormentFrame::new()],
-            global: EnviormentFrame::new(),
+            parent: EnviormentFrame::new(),
         }
     }
     pub fn scope_enter(&mut self) {
@@ -95,19 +95,19 @@ impl Enviorments {
     pub fn scope_exit(&mut self) {
         self.stack
             .pop()
-            .expect("[Internal Iterpreter Error]: tried to pop the global enviorment");
+            .expect("[Internal Iterpreter Error]: tried to pop the parent enviorment");
     }
     fn resolve_iter_mut(&mut self) -> impl Iterator<Item = &mut EnviormentFrame> {
-        self.stack.iter_mut().chain(once(&mut self.global))
+        self.stack.iter_mut().chain(once(&mut self.parent))
     }
     fn resolve_iter(&self) -> impl Iterator<Item = &EnviormentFrame> {
-        self.stack.iter().rev().chain(once(&self.global))
+        self.stack.iter().rev().chain(once(&*self.parent))
     }
     fn current_frame_mut(&mut self) -> &mut EnviormentFrame {
-        self.stack.last_mut().unwrap_or(&mut self.global)
+        self.stack.last_mut().unwrap_or(&mut self.parent)
     }
     fn current_frame(&self) -> &EnviormentFrame {
-        self.stack.last().unwrap_or(&self.global)
+        self.stack.last().unwrap_or(&self.parent)
     }
     fn get(&self, name: Identifier) -> Result<rt::Value, rt::Error> {
         self.resolve_iter()
@@ -143,7 +143,7 @@ pub struct Interpreter {
     strings: Rc<Interner<StrLiteral>>,
     // io_adaptor: Box<dyn IoAdaptor>,
     symbol_table: SymbolTable,
-    enviroments: Enviorments,
+    enviroments: LocalEnviorment,
 }
 
 impl Interpreter {
@@ -152,20 +152,27 @@ impl Interpreter {
             root: ast.ast.root,
             idents: ast.ast.identifiers,
             symbol_table: ast.table,
-            enviroments: Enviorments::new(),
+            enviroments: LocalEnviorment::new(),
             strings: ast.ast.strings,
         }
     }
 
     fn run(&mut self) -> Result<(), rt::Error> {
-        // let items = &self.root.items;
-        let main_fn = self.lookup_str("main").unwrap().clone();
-        if let SymbolEntry::Func { def: decl } = main_fn {
-            decl.block.evaluate(self)?;
-        } else {
-            panic!("No main function")
+        for item in &self.root.items {
+            #[allow(irrefutable_let_patterns)]
+            if let ItemKind::FnDecl(decl) = &item.kind {
+                let fn_obj = rt::FnObject::Yaipl(decl.clone());
+                self.enviroments.define(decl.name, decl.name_span)?;
+                self.enviroments.set(decl.name, fn_obj.into())?;
+            }
         }
+        let main = self.idents.get_ident("main").ok_or(rt::Error::NoMainFunc)?;
 
+        if let rt::Value::FnObject(fn_obj) = self.enviroments.get(main).unwrap() {
+            fn_obj.call(&FnArguments::empty(), self)?;
+        } else {
+            return Err(rt::Error::NoMainFunc);
+        }
         Ok(())
     }
 

@@ -124,7 +124,7 @@ impl<'src> Parser<'src> {
                     TokenKind::OpenParen => {
                         let arguments = self.parse_argument_list()?;
                         lhs = Expr {
-                            span: lhs.span.combine(arguments.span),
+                            span: lhs.span.combine_mabye(arguments.span),
                             kind: ExprKind::FnCall(Box::new(FnCall {
                                 callee: lhs,
                                 arguments,

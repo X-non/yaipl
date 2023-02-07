@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::Deref};
 
 use crate::utils::interner::branded::Identifier;
 
@@ -47,9 +47,12 @@ impl SymbolTable {
 
     fn regester_item(&mut self, item: &Item) {
         match &item.kind {
-            ItemKind::FnDecl(decl @ FnDecl { name, .. }) => {
-                let decl = SymbolEntry::Func { def: decl.clone() };
-                self.table.insert(*name, decl);
+            ItemKind::FnDecl(decl) => {
+                let name = decl.name;
+                let decl = SymbolEntry::Func {
+                    def: (&**decl).clone(),
+                };
+                self.table.insert(name, decl);
             }
         }
     }

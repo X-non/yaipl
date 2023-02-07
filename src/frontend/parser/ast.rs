@@ -44,8 +44,23 @@ pub struct Module {
 
 #[derive(Debug, Clone)]
 pub struct FnArguments {
-    pub span: Span,
+    pub span: Option<Span>,
     pub arguments: Vec<Expr>,
+}
+
+impl FnArguments {
+    pub fn new(span: Span, arguments: Vec<Expr>) -> Self {
+        Self {
+            span: Some(span),
+            arguments,
+        }
+    }
+    pub fn empty() -> Self {
+        Self {
+            span: None,
+            arguments: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -212,8 +227,9 @@ pub struct Item {
 }
 
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum ItemKind {
-    FnDecl(FnDecl),
+    FnDecl(Rc<FnDecl>),
 }
 #[derive(Debug, Clone)]
 pub struct FnParameter {

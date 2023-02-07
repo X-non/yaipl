@@ -1,12 +1,21 @@
+use core::num;
 use std::{fmt::Display, rc::Rc};
 
 use crate::{
-    frontend::parser::ast::{BinaryOp, Expr, FnDecl},
+    frontend::parser::ast::{BinaryOp, Expr, FnArguments, FnDecl},
     utils::interner::branded::Identifier,
 };
 
-use super::builtin::{self, BuiltinFunction};
-
+use super::{
+    builtin::{self, BuiltinFunction},
+    Evaluatable, Interpreter,
+};
+pub type Result<T = Value> = std::result::Result<T, Error>;
+#[derive(Debug)]
+pub enum Arity {
+    Fixed(usize),
+    Variable,
+}
 #[derive(Debug)]
 pub enum Error {
     BinaryTypeMissmatch(BinaryOp, Type, Type),
@@ -17,7 +26,8 @@ pub enum Error {
     Undeclared(Identifier),
     CantCall(Expr),
     CantAssign(Expr),
-    ArityError { expected: i32, found: usize },
+    ArityError { expected: usize, found: usize },
+    NoMainFunc,
 }
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Type {
@@ -38,15 +48,45 @@ pub enum Value {
     FnObject(FnObject),
 }
 
+impl From<FnObject> for Value {
+    fn from(v: FnObject) -> Self {
+        Self::FnObject(v)
+    }
+}
+
 impl From<String> for Value {
     fn from(v: String) -> Self {
         Self::String(v)
     }
 }
+
 #[derive(Debug, Clone)]
 pub enum FnObject {
     Yaipl(Rc<FnDecl>),
     Builtin(builtin::Function),
+}
+
+impl FnObject {
+    pub fn arity(&self) -> Arity {
+        match self {
+            FnObject::Yaipl(fn_obj) => Arity::Fixed(fn_obj.parameters.parameters.len()),
+            FnObject::Builtin(b) => b.arity(),
+        }
+    }
+    pub(crate) fn call(&self, arguments: &FnArguments, context: &mut Interpreter) -> Result {
+        if let Arity::Fixed(arity) = self.arity() {
+            if arity != arguments.arguments.len() {
+                return Err(Error::ArityError {
+                    expected: arity,
+                    found: arguments.arguments.len(),
+                });
+            }
+        };
+        match self {
+            FnObject::Yaipl(fn_obj) => todo!(),
+            FnObject::Builtin(b) => b.call(arguments, context),
+        }
+    }
 }
 
 impl Display for FnObject {
@@ -105,7 +145,7 @@ impl From<()> for Value {
 impl TryFrom<u64> for Value {
     type Error = Error;
 
-    fn try_from(v: u64) -> Result<Self, Self::Error> {
+    fn try_from(v: u64) -> Result {
         match v.try_into() {
             Ok(v) => Ok(Self::Int(v)),
             Err(_) => Err(Error::Overflow),
@@ -125,7 +165,7 @@ impl From<bool> for Value {
 }
 
 impl Value {
-    pub fn assert_type(&self, ty: Type) -> Result<(), Error> {
+    pub fn assert_type(&self, ty: Type) -> Result<()> {
         if self.ty() == ty {
             Ok(())
         } else {
