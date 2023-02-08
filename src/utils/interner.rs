@@ -171,7 +171,7 @@ impl StrArena {
         text.as_ptr().copy_to_nonoverlapping(start_of_alloc, len);
 
         // the grow ensures there is space for str and as such safe to offset
-        self.start.set(start_of_alloc.offset(len as isize));
+        self.start.set(start_of_alloc.add(len));
 
         str::from_utf8_unchecked(from_raw_parts(start_of_alloc, len))
     }
