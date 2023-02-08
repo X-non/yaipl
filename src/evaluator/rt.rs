@@ -1,5 +1,9 @@
 use core::num;
-use std::{fmt::Display, rc::Rc};
+use std::{
+    fmt::{Arguments, Display},
+    mem,
+    rc::Rc,
+};
 
 use crate::{
     frontend::parser::ast::{BinaryOp, Expr, FnArguments, FnDecl},
@@ -8,7 +12,7 @@ use crate::{
 
 use super::{
     builtin::{self, BuiltinFunction},
-    Evaluatable, Interpreter,
+    Enviorment, Evaluatable, Interpreter,
 };
 pub type Result<T = Value> = std::result::Result<T, Error>;
 #[derive(Debug)]
@@ -83,7 +87,33 @@ impl FnObject {
             }
         };
         match self {
-            FnObject::Yaipl(fn_obj) => todo!(),
+            FnObject::Yaipl(fn_obj) => {
+                let args: Result<Vec<_>> = arguments
+                    .arguments
+                    .iter()
+                    .map(|expr| expr.evaluate(context))
+                    .collect();
+
+                let parameters = fn_obj.parameters.parameters.iter();
+
+                let function_scope = Enviorment::shared_with_parent(context.global_env.clone());
+                let old_scope = mem::replace(&mut context.current_env, function_scope);
+
+                for (argument, param) in args?.into_iter().zip(parameters) {
+                    context.define(param.name, param.span).expect(
+                        "[Internal Interpreter Error] Defining a new parameter should never fail",
+                    );
+                    context.assign(param.name, argument).expect(
+                        "[Internal Interpreter Error] Defining a new parameter should never fail",
+                    );
+                }
+
+                fn_obj.block.evaluate(context)?;
+
+                context.current_env = old_scope;
+
+                Ok(().into())
+            }
             FnObject::Builtin(b) => b.call(arguments, context),
         }
     }

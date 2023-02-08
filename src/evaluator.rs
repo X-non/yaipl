@@ -4,8 +4,8 @@ mod rt;
 
 mod io_adaptor;
 use std::{
+    cell::RefCell,
     collections::{hash_map::Entry, HashMap},
-    iter::once,
     rc::Rc,
 };
 
@@ -41,6 +41,12 @@ impl Variable {
     pub fn assign(&mut self, value: rt::Value) {
         self.kind = VariableKind::Initialized(value);
     }
+    pub fn try_get_initialized(&self) -> Option<rt::Value> {
+        match &self.kind {
+            VariableKind::Initialized(value) => Some(value.clone()),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -48,25 +54,42 @@ enum VariableKind {
     Initialized(rt::Value),
     Uninitialized,
 }
-struct EnviormentFrame {
+struct Enviorment {
     map: HashMap<Identifier, Variable>,
+    parent: Option<SharedFrame>,
 }
-impl EnviormentFrame {
-    fn new() -> EnviormentFrame {
+impl Enviorment {
+    fn new() -> Enviorment {
         Self {
             map: Default::default(),
+            parent: None,
         }
     }
 
-    fn get(&self, name: Identifier) -> Option<&Variable> {
-        self.map.get(&name)
+    fn get(&self, name: Identifier) -> Option<rt::Value> {
+        self.map
+            .get(&name)
+            .and_then(Variable::try_get_initialized)
+            .or_else(|| {
+                let parent_frame = self.parent()?.as_ref().borrow();
+                parent_frame.get(name)
+            })
     }
 
-    fn get_mut(&mut self, name: Identifier) -> Option<&mut Variable> {
-        self.map.get_mut(&name)
+    fn assign(&mut self, name: Identifier, value: rt::Value) -> rt::Result<()> {
+        if let Some(var) = self.map.get_mut(&name) {
+            var.assign(value);
+            return Ok(());
+        }
+
+        let Some(parent) = &self.parent else {
+            return Err(rt::Error::Undeclared(name));
+        };
+
+        parent.borrow_mut().assign(name, value)
     }
 
-    fn define_variable(&mut self, name: Identifier, variable_span: Span) -> Option<&mut Variable> {
+    fn define(&mut self, name: Identifier, variable_span: Span) -> Option<&mut Variable> {
         match self.map.entry(name) {
             Entry::Occupied(_) => None,
             Entry::Vacant(entry) => Some(entry.insert(Variable {
@@ -75,67 +98,27 @@ impl EnviormentFrame {
             })),
         }
     }
+
+    pub fn new_shared() -> SharedFrame {
+        Rc::new(RefCell::new(Self::new()))
+    }
+
+    pub fn shared_with_parent(parent: Rc<RefCell<Enviorment>>) -> Rc<RefCell<Enviorment>> {
+        let mut new = Self::new();
+        new.parent = Some(parent);
+        Rc::new(RefCell::new(new))
+    }
+
+    pub fn parent(&self) -> Option<&Rc<RefCell<Enviorment>>> {
+        self.parent.as_ref()
+    }
 }
+type SharedFrame = Rc<RefCell<Enviorment>>;
+#[deprecated]
 struct LocalEnviorment {
-    parent: Rc<EnviormentFrame>,
-    stack: Vec<EnviormentFrame>,
+    parent: SharedFrame,
 }
-#[allow(dead_code)]
-impl LocalEnviorment {
-    fn new() -> Self {
-        Self {
-            stack: vec![EnviormentFrame::new()],
-            parent: EnviormentFrame::new(),
-        }
-    }
-    pub fn scope_enter(&mut self) {
-        self.stack.push(EnviormentFrame::new())
-    }
 
-    pub fn scope_exit(&mut self) {
-        self.stack
-            .pop()
-            .expect("[Internal Iterpreter Error]: tried to pop the parent enviorment");
-    }
-    fn resolve_iter_mut(&mut self) -> impl Iterator<Item = &mut EnviormentFrame> {
-        self.stack.iter_mut().chain(once(&mut self.parent))
-    }
-    fn resolve_iter(&self) -> impl Iterator<Item = &EnviormentFrame> {
-        self.stack.iter().rev().chain(once(&*self.parent))
-    }
-    fn current_frame_mut(&mut self) -> &mut EnviormentFrame {
-        self.stack.last_mut().unwrap_or(&mut self.parent)
-    }
-    fn current_frame(&self) -> &EnviormentFrame {
-        self.stack.last().unwrap_or(&self.parent)
-    }
-    fn get(&self, name: Identifier) -> Result<rt::Value, rt::Error> {
-        self.resolve_iter()
-            .find_map(|frame| frame.get(name))
-            .ok_or(rt::Error::Undeclared(name))
-            .and_then(|variable| match &variable.kind {
-                VariableKind::Initialized(value) => Ok(value.clone()),
-                VariableKind::Uninitialized => Err(rt::Error::Uninitalized(name)),
-            })
-    }
-    fn define(&mut self, name: Identifier, variable_span: Span) -> Result<(), rt::Error> {
-        self.current_frame_mut()
-            .define_variable(name, variable_span)
-            .ok_or(rt::Error::Shadowed(name))?;
-        Ok(())
-    }
-    fn resolve_mut(&mut self, name: Identifier) -> Option<&mut Variable> {
-        self.resolve_iter_mut()
-            .find_map(|frame| frame.get_mut(name))
-    }
-    fn set(&mut self, name: Identifier, value: rt::Value) -> Result<(), rt::Error> {
-        self.resolve_mut(name)
-            .ok_or(rt::Error::Undeclared(name))?
-            .assign(value);
-
-        Ok(())
-    }
-}
 #[allow(dead_code)]
 pub struct Interpreter {
     root: Module,
@@ -143,37 +126,66 @@ pub struct Interpreter {
     strings: Rc<Interner<StrLiteral>>,
     // io_adaptor: Box<dyn IoAdaptor>,
     symbol_table: SymbolTable,
-    enviroments: LocalEnviorment,
+    global_env: SharedFrame,
+    current_env: SharedFrame,
 }
 
 impl Interpreter {
     fn new(ast: AnnotatedAst) -> Self {
+        let global_env = Enviorment::new_shared();
         Self {
             root: ast.ast.root,
             idents: ast.ast.identifiers,
             symbol_table: ast.table,
-            enviroments: LocalEnviorment::new(),
+
             strings: ast.ast.strings,
+            current_env: Rc::clone(&global_env),
+            global_env,
         }
     }
 
     fn run(&mut self) -> Result<(), rt::Error> {
-        for item in &self.root.items {
-            #[allow(irrefutable_let_patterns)]
-            if let ItemKind::FnDecl(decl) = &item.kind {
-                let fn_obj = rt::FnObject::Yaipl(decl.clone());
-                self.enviroments.define(decl.name, decl.name_span)?;
-                self.enviroments.set(decl.name, fn_obj.into())?;
-            }
+        let decls: Vec<_> = self
+            .root
+            .items
+            .iter()
+            .filter_map(|item| {
+                #[allow(irrefutable_let_patterns)]
+                if let ItemKind::FnDecl(decl) = &item.kind {
+                    Some((decl.clone(), item.span))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        for (decl, span) in decls {
+            self.define(decl.name, span)?;
+            self.assign(decl.name, rt::FnObject::Yaipl(decl).into())?;
         }
         let main = self.idents.get_ident("main").ok_or(rt::Error::NoMainFunc)?;
 
-        if let rt::Value::FnObject(fn_obj) = self.enviroments.get(main).unwrap() {
+        if let rt::Value::FnObject(fn_obj) = self.get(main).unwrap() {
             fn_obj.call(&FnArguments::empty(), self)?;
         } else {
             return Err(rt::Error::NoMainFunc);
         }
         Ok(())
+    }
+
+    pub fn scope_enter(&mut self) {
+        let old_top = Rc::clone(&self.current_env);
+        self.current_env = Enviorment::shared_with_parent(old_top);
+    }
+
+    pub fn scope_exit(&mut self) {
+        let parent_of_current = self
+            .current_env
+            .as_ref()
+            .borrow()
+            .parent()
+            .expect("[Internal Iterpreter Error]: tried to pop the parent enviorment")
+            .clone();
+        self.current_env = parent_of_current;
     }
 
     fn lookup(&self, ident: Interned<Ident>) -> Option<&SymbolEntry> {
@@ -184,15 +196,35 @@ impl Interpreter {
         let ident = self.idents.get_ident(name)?;
         self.lookup(ident)
     }
+
+    fn get(&self, name: Identifier) -> Result<rt::Value, rt::Error> {
+        self.current_env
+            .as_ref()
+            .borrow()
+            .get(name)
+            .ok_or(rt::Error::Undeclared(name))
+    }
+
+    fn define(&mut self, name: Identifier, variable_span: Span) -> Result<(), rt::Error> {
+        self.current_env
+            .borrow_mut()
+            .define(name, variable_span)
+            .ok_or(rt::Error::Shadowed(name))?;
+        Ok(())
+    }
+
+    fn assign(&mut self, name: Identifier, value: rt::Value) -> Result<(), rt::Error> {
+        self.current_env.borrow_mut().assign(name, value)
+    }
 }
 
 impl Evaluatable for Block {
     fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, rt::Error> {
-        context.enviroments.scope_enter();
+        context.scope_enter();
         for stmt in self.stmts() {
             stmt.evaluate(context)?
         }
-        context.enviroments.scope_exit();
+        context.scope_exit();
         Ok(())
     }
 }
@@ -203,8 +235,8 @@ impl Evaluatable for Stmt {
             StmtKind::Block(block) => block.evaluate(context)?,
             StmtKind::VaribleDecl(decl) => {
                 let initalizer = decl.intializer.evaluate(context)?;
-                context.enviroments.define(decl.name, decl.name_span)?;
-                context.enviroments.set(decl.name, initalizer)?;
+                context.define(decl.name, decl.name_span)?;
+                context.assign(decl.name, initalizer)?;
             }
             StmtKind::Expr(expr) => {
                 expr.evaluate(context)?;
@@ -222,7 +254,7 @@ impl Evaluatable for Stmt {
                     return Err(rt::Error::CantAssign(assignment.assignee.clone()));
                 };
                 let value = assignment.rhs.evaluate(context)?;
-                context.enviroments.set(name, value)?;
+                context.assign(name, value)?;
             }
         }
         Ok(())
@@ -276,7 +308,7 @@ impl Evaluatable for Expr {
             ExprKind::String(text) => {
                 Ok(rt::Value::String(context.strings.lookup(*text).to_string()))
             }
-            ExprKind::Variable(name) => context.enviroments.get(*name),
+            ExprKind::Variable(name) => context.get(*name),
             ExprKind::FnCall(call) => call.evaluate(context),
             ExprKind::Binary(binary) => binary.evaluate(context),
             ExprKind::UnaryMinus(_) => todo!(),
