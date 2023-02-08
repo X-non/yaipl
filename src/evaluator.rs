@@ -18,12 +18,11 @@ use crate::{
             Binary, BinaryOp, Block, BlockWithCondition, Expr, ExprKind, FnArguments, FnCall,
             IfBranchSet, ItemKind, Module, Stmt, StmtKind,
         },
-        semantic_analysis::{AnnotatedAst, SymbolEntry, SymbolTable},
+        semantic_analysis::AnnotatedAst,
         span::Span,
     },
     utils::interner::{
-        branded::{Ident, Identifier, StrLiteral},
-        Interned, Interner,
+        branded::{Ident, Identifier, StrLiteral}, Interner,
     },
 };
 
@@ -114,18 +113,13 @@ impl Enviorment {
     }
 }
 type SharedFrame = Rc<RefCell<Enviorment>>;
-#[deprecated]
-struct LocalEnviorment {
-    parent: SharedFrame,
-}
 
 #[allow(dead_code)]
 pub struct Interpreter {
     root: Module,
     idents: Rc<Interner<Ident>>,
     strings: Rc<Interner<StrLiteral>>,
-    // io_adaptor: Box<dyn IoAdaptor>,
-    symbol_table: SymbolTable,
+    
     global_env: SharedFrame,
     current_env: SharedFrame,
     return_value: Option<rt::Value>,
@@ -137,7 +131,6 @@ impl Interpreter {
         let mut interpreter = Self {
             root: ast.ast.root,
             idents: ast.ast.identifiers,
-            symbol_table: ast.table,
 
             strings: ast.ast.strings,
             current_env: Rc::clone(&global_env),
@@ -195,15 +188,6 @@ impl Interpreter {
             .expect("[Internal Iterpreter Error]: tried to pop the parent enviorment")
             .clone();
         self.current_env = parent_of_current;
-    }
-
-    fn lookup(&self, ident: Interned<Ident>) -> Option<&SymbolEntry> {
-        self.symbol_table.get(ident)
-    }
-
-    fn lookup_str(&self, name: &str) -> Option<&SymbolEntry> {
-        let ident = self.idents.get_ident(name)?;
-        self.lookup(ident)
     }
 
     fn get(&self, name: Identifier) -> Result<rt::Value, rt::Error> {

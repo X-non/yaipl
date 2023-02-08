@@ -42,11 +42,7 @@ impl BuiltinFunction for ReadLine {
         "readln"
     }
 
-    fn call(
-        &self,
-        arguments: &FnArguments,
-        context: &mut Interpreter,
-    ) -> Result<rt::Value, rt::Error> {
+    fn call(&self, arguments: &FnArguments, _: &mut Interpreter) -> Result<rt::Value, rt::Error> {
         let arity = arguments.arguments.len();
         if arity != 0 {
             return Err(rt::Error::ArityError {

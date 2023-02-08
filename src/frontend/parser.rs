@@ -193,39 +193,7 @@ impl<'src> Parser<'src> {
             block,
         })
     }
-    #[deprecated]
-    fn parse_call_expr(&mut self) -> ParseResult<Expr> {
-        let mut parsed = self.parse_primary()?;
-        while self.peek().kind == TokenKind::OpenParen {
-            let arguments = self.parse_argument_list()?;
 
-            let span = parsed.span.combine_mabye(arguments.span);
-            let kind = ExprKind::FnCall(Box::new(FnCall {
-                arguments,
-                callee: parsed,
-            }));
-
-            parsed = Expr { span, kind };
-        }
-        Ok(parsed)
-    }
-    fn parse_primary(&mut self) -> ParseResult<Expr> {
-        self.map_eat_if(|token| {
-            let kind = match token.kind {
-                TokenKind::Integer(num) => ExprKind::Integer(num),
-                TokenKind::Float(num) => ExprKind::Float(num),
-                TokenKind::String(string) => ExprKind::String(string),
-                TokenKind::Ident(ident) => ExprKind::Variable(ident),
-                TokenKind::True => ExprKind::Bool(true),
-                TokenKind::False => ExprKind::Bool(false),
-                _ => return Err(ParseErrorKind::UnexpectedToken.with_span(token.span)),
-            };
-            Ok(Expr {
-                kind,
-                span: token.span,
-            })
-        })
-    }
     fn parse_stmt(&mut self) -> ParseResult<Stmt> {
         let kind;
         let span;
