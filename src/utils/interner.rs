@@ -118,6 +118,12 @@ impl<Brand> Interner<Brand> {
     }
 }
 
+impl<Brand> Default for Interner<Brand> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 //modeled after the dropless arena in rustc
 struct StrArena {
     ///points to unwritten byte in self.chunks.last()

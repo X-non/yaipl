@@ -54,7 +54,7 @@ impl BuiltinFunction for ReadLine {
         let mut string = String::new();
 
         stdin().read_line(&mut string).unwrap();
-        let trimmed = string.trim_end_matches("\r\n").trim_end_matches("\n");
+        let trimmed = string.trim_end_matches("\r\n").trim_end_matches('\n');
         string.truncate(trimmed.len());
         Ok(string.into())
     }

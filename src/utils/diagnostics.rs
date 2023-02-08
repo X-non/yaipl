@@ -87,9 +87,7 @@ pub fn resolve_span_from_src(src: &str, span: Span) -> LocalFileCoordinate {
 }
 
 fn newlines_before(newlines: &[u32], index: u32) -> usize {
-    let newlines_before = match newlines.binary_search(&index) {
+    match newlines.binary_search(&index) {
         Ok(num) | Err(num) => num,
-    };
-
-    newlines_before
+    }
 }

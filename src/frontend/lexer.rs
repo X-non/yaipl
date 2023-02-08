@@ -69,9 +69,9 @@ fn unescape_special_chars(content: &str) -> Result<Cow<'_, str>, InvalidEscapeSe
     let mut escaped = String::new();
     let mut unchecked = content;
 
-    while let Some(index) = unchecked.find("\\") {
+    while let Some(index) = unchecked.find('\\') {
         let (before_escape, with_backslash) = unchecked.split_at(index);
-        let with_escape_seq = with_backslash.strip_prefix("\\").unwrap();
+        let with_escape_seq = with_backslash.strip_prefix('\\').unwrap();
         let (first, rest) = split_first_char(with_escape_seq)
             .expect("cant have a \\ alone before string end due to the string lexing");
         let replacement = match first {

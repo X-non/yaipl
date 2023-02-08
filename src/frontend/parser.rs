@@ -1,8 +1,8 @@
 use std::{fmt::Debug, rc::Rc};
 
 use self::ast::{
-    Assignment, Ast, Block, BlockWithCondition, Expr, ExprKind, FnArguments, FnCall, FnDecl,
-    FnParameter, IfBranchSet, Item, ItemKind, Module, Stmt, StmtKind, VaribleDecl, WhileLoop,
+    Assignment, Ast, Block, BlockWithCondition, FnArguments, FnDecl, FnParameter, IfBranchSet,
+    Item, ItemKind, Module, Stmt, StmtKind, VaribleDecl, WhileLoop,
 };
 
 use super::{
@@ -167,7 +167,7 @@ impl<'src> Parser<'src> {
                 break;
             }
             //parsing else if
-            if let Some(_) = self.eat_if(|token| token.kind == TokenKind::If) {
+            if self.eat_if(|token| token.kind == TokenKind::If).is_some() {
                 let else_if_branch = self.parse_if_branch()?;
 
                 else_if_branches.push(else_if_branch);
@@ -382,8 +382,10 @@ impl<'src> Parser<'src> {
             }
         };
 
-        if last_consumed_comma.is_some() && elements.len() == 0 {
-            return Err(ParseErrorKind::ListOnlyComma.with_span(last_consumed_comma.unwrap().span));
+        if let Some(last_consumed_comma) = last_consumed_comma {
+            if elements.is_empty() {
+                return Err(ParseErrorKind::ListOnlyComma.with_span(last_consumed_comma.span));
+            }
         };
         Ok(ParsedList {
             start: start_token,
@@ -395,6 +397,8 @@ impl<'src> Parser<'src> {
 
 #[cfg(test)]
 mod tests {
+    use crate::frontend::parser::ast::{Expr, ExprKind};
+
     use super::*;
     #[test]
     fn can_parse_while_loop() {

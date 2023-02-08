@@ -30,7 +30,7 @@ impl<Brand> Copy for Interned<Brand> {}
 
 impl<Brand> Clone for Interned<Brand> {
     fn clone(&self) -> Self {
-        Self(self.0.clone(), PhantomData)
+        Self(self.0, PhantomData)
     }
 }
 

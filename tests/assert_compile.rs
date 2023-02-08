@@ -24,15 +24,14 @@ fn test_folder(subfolder: &Path) -> impl Iterator<Item = PathBuf> {
 
     let dir = fs::read_dir(&path)
         .unwrap_or_else(|err| panic!("Can't open {}, Err: {}", path.display(), err));
-    let files = dir.filter_map(|file| {
+
+    dir.filter_map(|file| {
         let file = file.ok()?;
         if file.file_type().ok()?.is_file() {
             return Some(file.path());
         }
         None
-    });
-
-    files
+    })
 }
 
 fn start_build(path: &Path) -> Command {
@@ -42,7 +41,7 @@ fn start_build(path: &Path) -> Command {
 }
 
 fn start_all<'a>(files: impl 'a + Iterator<Item = &'a Path>) -> impl 'a + Iterator<Item = Command> {
-    files.map(|file| start_build(file))
+    files.map(start_build)
 }
 fn print_with_left_line(text: &str) {
     for line in text.lines() {

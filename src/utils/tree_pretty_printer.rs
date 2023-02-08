@@ -130,7 +130,7 @@ impl TreePrintable for Expr {
                 self.span,
             ),
             ExprKind::FnCall(fn_call) => {
-                printer.emit_located(format!("FnCall"), self.span);
+                printer.emit_located("FnCall", self.span);
 
                 printer.emit_labled("Callee", |printer| fn_call.callee.print(printer));
 

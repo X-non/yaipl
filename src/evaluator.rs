@@ -352,8 +352,8 @@ macro_rules! delagate {
 impl Evaluatable for Binary {
     type Value = rt::Value;
     fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, Self::Error> {
-        let lhs = (&*self.lhs).evaluate(context)?;
-        let rhs = (&*self.rhs).evaluate(context)?;
+        let lhs = self.lhs.evaluate(context)?;
+        let rhs = self.rhs.evaluate(context)?;
         let lhs_ty = lhs.ty();
         let rhs_ty = rhs.ty();
 
@@ -411,6 +411,6 @@ impl Evaluatable for FnCall {
             return Err(rt::Error::CantCall(self.callee.clone()))
         };
 
-        return function.call(&self.arguments, context);
+        function.call(&self.arguments, context)
     }
 }

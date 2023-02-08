@@ -1,9 +1,4 @@
-use core::num;
-use std::{
-    fmt::{Arguments, Display},
-    mem,
-    rc::Rc,
-};
+use std::{fmt::Display, mem, rc::Rc};
 
 use crate::{
     frontend::parser::ast::{BinaryOp, Expr, FnArguments, FnDecl},
