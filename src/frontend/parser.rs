@@ -10,7 +10,6 @@ use super::{
     span::Span,
 };
 pub mod ast;
-mod binary_parsing;
 mod expression_parsing;
 pub type ParseResult<T> = Result<T, ParseError>;
 
