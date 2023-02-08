@@ -100,7 +100,7 @@ impl FnObject {
                 let old_scope = mem::replace(&mut context.current_env, function_scope);
 
                 for (argument, param) in args?.into_iter().zip(parameters) {
-                    context.define(param.name, param.span).expect(
+                    context.define(param.name, Some(param.span)).expect(
                         "[Internal Interpreter Error] Defining a new parameter should never fail",
                     );
                     context.assign(param.name, argument).expect(
@@ -111,8 +111,8 @@ impl FnObject {
                 fn_obj.block.evaluate(context)?;
 
                 context.current_env = old_scope;
-
-                Ok(().into())
+                let return_value = context.return_value.take().unwrap_or(Value::Unit);
+                Ok(return_value)
             }
             FnObject::Builtin(b) => b.call(arguments, context),
         }

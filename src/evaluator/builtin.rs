@@ -1,21 +1,19 @@
-use std::{collections::HashMap, io::stdin};
-
-use enum_dispatch::enum_dispatch;
+use std::io::stdin;
 
 use crate::frontend::parser::ast::FnArguments;
+use enum_dispatch::enum_dispatch;
+
+use strum::{EnumIter, IntoEnumIterator};
 
 use super::{
     rt::{self, Arity},
     Evaluatable, Interpreter,
 };
-pub fn builtin_functions() -> HashMap<&'static str, Function> {
-    [ReadLine.into(), PrintLine.into()]
-        .into_iter()
-        .map(|func: Function| (func.name(), func))
-        .collect()
+pub fn builtin_functions() -> impl Iterator<Item = Function> {
+    Function::iter()
 }
 #[enum_dispatch(BuiltinFunction)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter)]
 pub enum Function {
     PrintLine,
     ReadLine,
@@ -32,7 +30,7 @@ pub trait BuiltinFunction {
     ) -> Result<rt::Value, rt::Error>;
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ReadLine;
 
 impl BuiltinFunction for ReadLine {
@@ -66,7 +64,7 @@ impl BuiltinFunction for ReadLine {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct PrintLine;
 
 impl BuiltinFunction for PrintLine {

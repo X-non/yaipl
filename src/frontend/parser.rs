@@ -1,7 +1,5 @@
 use std::{fmt::Debug, rc::Rc};
 
-use crate::utils::{interner::branded::Identifier, smallvec::SmallVec};
-
 use self::ast::{
     Assignment, Ast, Block, BlockWithCondition, Expr, ExprKind, FnArguments, FnCall, FnDecl,
     FnParameter, IfBranchSet, Item, ItemKind, Module, Stmt, StmtKind, VaribleDecl, WhileLoop,
@@ -249,6 +247,10 @@ impl<'src> Parser<'src> {
             let block = self.parse_block(None)?;
             span = while_token.span.combine(block.span);
             kind = StmtKind::WhileLoop(WhileLoop { condition, block });
+        } else if let Some(return_token) = self.eat_if(|token| token.kind == TokenKind::Return) {
+            let return_value_expr = self.parse_expr()?;
+            span = return_token.span.combine(return_value_expr.span);
+            kind = StmtKind::Return(return_value_expr);
         } else {
             let expr = self.parse_expr()?;
 

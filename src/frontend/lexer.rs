@@ -104,6 +104,9 @@ pub enum TokenKind {
     If,
     #[token("else")]
     Else,
+    #[token("return")]
+    Return,
+
     #[token(";")]
     SemiColon,
     #[token(",")]

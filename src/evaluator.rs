@@ -9,8 +9,8 @@ use std::{
     rc::Rc,
 };
 
+use self::builtin::{BuiltinFunction, builtin_functions};
 pub use self::evaluatable::Evaluatable;
-use self::{builtin::BuiltinFunction, rt::FnObject};
 
 use crate::{
     frontend::{
@@ -33,7 +33,7 @@ pub fn evaluate(ast: AnnotatedAst) -> Result<(), rt::Error> {
 
 #[derive(Debug, Clone)]
 struct Variable {
-    decl_span: Span,
+    decl_span: Option<Span>,
     kind: VariableKind,
 }
 
@@ -89,7 +89,7 @@ impl Enviorment {
         parent.borrow_mut().assign(name, value)
     }
 
-    fn define(&mut self, name: Identifier, variable_span: Span) -> Option<&mut Variable> {
+    fn define(&mut self, name: Identifier, variable_span: Option<Span>) -> Option<&mut Variable> {
         match self.map.entry(name) {
             Entry::Occupied(_) => None,
             Entry::Vacant(entry) => Some(entry.insert(Variable {
@@ -128,12 +128,13 @@ pub struct Interpreter {
     symbol_table: SymbolTable,
     global_env: SharedFrame,
     current_env: SharedFrame,
+    return_value: Option<rt::Value>,
 }
 
 impl Interpreter {
     fn new(ast: AnnotatedAst) -> Self {
         let global_env = Enviorment::new_shared();
-        Self {
+        let mut interpreter = Self {
             root: ast.ast.root,
             idents: ast.ast.identifiers,
             symbol_table: ast.table,
@@ -141,7 +142,15 @@ impl Interpreter {
             strings: ast.ast.strings,
             current_env: Rc::clone(&global_env),
             global_env,
+            return_value: None,
+        };
+        for func in builtin_functions(){
+            let name = interpreter.idents.intern(func.name());
+            interpreter.define(name, None).expect("[Internal Interpreter Error] Defining builtin functions shouldn't fail");
+            interpreter.assign(name, rt::FnObject::Builtin(func).into()).expect("[Internal Interpreter Error] Defining builtin functions shouldn't fail");
         }
+
+        interpreter
     }
 
     fn run(&mut self) -> Result<(), rt::Error> {
@@ -159,7 +168,7 @@ impl Interpreter {
             })
             .collect();
         for (decl, span) in decls {
-            self.define(decl.name, span)?;
+            self.define(decl.name, Some(span))?;
             self.assign(decl.name, rt::FnObject::Yaipl(decl).into())?;
         }
         let main = self.idents.get_ident("main").ok_or(rt::Error::NoMainFunc)?;
@@ -205,7 +214,7 @@ impl Interpreter {
             .ok_or(rt::Error::Undeclared(name))
     }
 
-    fn define(&mut self, name: Identifier, variable_span: Span) -> Result<(), rt::Error> {
+    fn define(&mut self, name: Identifier, variable_span: Option<Span>) -> Result<(), rt::Error> {
         self.current_env
             .borrow_mut()
             .define(name, variable_span)
@@ -216,13 +225,24 @@ impl Interpreter {
     fn assign(&mut self, name: Identifier, value: rt::Value) -> Result<(), rt::Error> {
         self.current_env.borrow_mut().assign(name, value)
     }
+
+    fn set_return_value(&mut self, return_value: rt::Value) {
+        self.return_value = Some(return_value);
+    }
+
+    fn has_return_value(&self) -> bool {
+        self.return_value.is_some()
+    }
 }
 
 impl Evaluatable for Block {
     fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, rt::Error> {
         context.scope_enter();
         for stmt in self.stmts() {
-            stmt.evaluate(context)?
+            stmt.evaluate(context)?;
+            if context.has_return_value() {
+                break;
+            }
         }
         context.scope_exit();
         Ok(())
@@ -231,11 +251,21 @@ impl Evaluatable for Block {
 impl Evaluatable for Stmt {
     fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, rt::Error> {
         match &self.kind {
-            StmtKind::If(set) => set.evaluate(context)?,
-            StmtKind::Block(block) => block.evaluate(context)?,
+            StmtKind::If(set) => {
+                set.evaluate(context)?;
+                if context.has_return_value() {
+                    return Ok(());
+                }
+            }
+            StmtKind::Block(block) => {
+                block.evaluate(context)?;
+                if context.has_return_value() {
+                    return Ok(());
+                }
+            }
             StmtKind::VaribleDecl(decl) => {
                 let initalizer = decl.intializer.evaluate(context)?;
-                context.define(decl.name, decl.name_span)?;
+                context.define(decl.name, Some(decl.name_span))?;
                 context.assign(decl.name, initalizer)?;
             }
             StmtKind::Expr(expr) => {
@@ -248,6 +278,9 @@ impl Evaluatable for Stmt {
                     break;
                 }
                 while_loop.block.evaluate(context)?;
+                if context.has_return_value() {
+                    return Ok(());
+                }
             },
             StmtKind::Assignment(assignment) => {
                 let ExprKind::Variable(name) = assignment.assignee.kind  else {
@@ -255,6 +288,11 @@ impl Evaluatable for Stmt {
                 };
                 let value = assignment.rhs.evaluate(context)?;
                 context.assign(name, value)?;
+            }
+            StmtKind::Return(expr) => {
+                let return_value = expr.evaluate(context)?;
+                context.set_return_value(return_value);
+                return Ok(());
             }
         }
         Ok(())
@@ -381,16 +419,14 @@ impl Evaluatable for FnCall {
     type Value = rt::Value;
 
     fn evaluate(&self, context: &mut Interpreter) -> Result<Self::Value, Self::Error> {
-        //FIXME print hack;
-        if let ExprKind::Variable(ident) = self.callee.kind {
-            let callee_name = context.idents.lookup(ident);
-            let fn_obj: builtin::Function = match callee_name {
-                "println" => builtin::PrintLine.into(),
-                "readln" => builtin::ReadLine.into(),
-                _ => todo!("function lookup and call"),
-            };
-            return fn_obj.call(&self.arguments, context);
-        }
-        return Err(rt::Error::CantCall(self.callee.clone()));
+        let ExprKind::Variable(ident) = self.callee.kind else {
+            return Err(rt::Error::CantCall(self.callee.clone()));
+        };
+
+        let rt::Value::FnObject(function) = context.get(ident)? else { 
+            return Err(rt::Error::CantCall(self.callee.clone()))
+        };
+
+        return function.call(&self.arguments, context);
     }
 }

@@ -187,6 +187,7 @@ pub struct BlockWithCondition {
     pub condition: Expr,
     pub block: Block,
 }
+
 #[derive(Debug, Clone)]
 pub struct Block {
     pub span: Span,
@@ -274,6 +275,7 @@ pub struct Stmt {
 pub enum StmtKind {
     If(IfBranchSet),
     Block(Block),
+    Return(Expr),
     VaribleDecl(VaribleDecl),
     Assignment(Box<Assignment>),
     Expr(Expr),

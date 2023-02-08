@@ -202,6 +202,10 @@ impl TreePrintable for Stmt {
                     printer.emit_labled("Rhs", |printer| assinment.rhs.print(printer));
                 });
             }
+            StmtKind::Return(expr) => {
+                printer.emit_located("Return", self.span);
+                printer.emit_indented(|printer| expr.print(printer))
+            }
         }
     }
 }
