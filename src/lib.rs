@@ -7,6 +7,7 @@ mod build_program;
 pub mod cli;
 pub mod evaluator;
 pub mod frontend;
+pub mod middleend;
 pub mod utils;
 
 pub fn build_program(options: &CLIOptions) {
